@@ -16,6 +16,11 @@ def resolve_field(document, field, issues):
         from captionqa.caption_qa_candidates import valid_candidate, candidate_operations, PUNCTUATION_POLICY, EXPLICIT_PUNCTUATION_POLICY, REWRITE_POLICY
         from captionqa.caption_qa_suggestions import POLICY as SUGGESTION_POLICY
         for issue in selected:
+            from captionqa.caption_qa_labels import POLICY as SEPARATOR_POLICY
+            if issue.get('separator_policy')==SEPARATOR_POLICY:
+                from captionqa.caption_qa_labels import separator_operations
+                if issue['operations']!=separator_operations(field['name'],old):
+                    raise ValueError('标签分隔符修改超出明确格式规范，已停止回填。')
             if issue.get('requires_confirmation'):
                 expected=candidate_operations(issue,old)
                 if len(issue['operations'])!=len(expected) or any(

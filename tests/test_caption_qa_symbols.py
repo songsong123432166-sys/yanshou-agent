@@ -107,12 +107,15 @@ class SymbolPolicyTests(unittest.TestCase):
                     self.assertEqual(qa.run_static_rules(sections), [])
                     self.assertEqual(qa.apply_static_fixes(sections), sections)
 
-    def test_task_label_delimiter_errors_are_manual_not_metadata_rewrites(self):
+    def test_complete_task_labels_get_separator_fixes_but_empty_labels_stay_manual(self):
         for value in ('人物参考、动态参考', '人物参考，动态参考', '人物参考\n动态参考', '人物参考||动态参考'):
             with self.subTest(value=value):
                 sections = {'任务类型': value}
                 self.assertEqual([i['issue_type'] for i in qa.run_static_rules(sections)], ['label_separator'])
-                self.assertEqual(qa.apply_static_fixes(sections), sections)
+                if '||' in value:
+                    self.assertEqual(qa.apply_static_fixes(sections),sections)
+                else:
+                    self.assertEqual(qa.apply_static_fixes(sections),{'任务类型':'人物参考｜动态参考'})
 
     def test_audio_reference_tags_are_supported_without_changing_spoken_words(self):
         raw = self.caption('与音频1相同的背景音乐，< 音频2 >中同款音效，演唱道{音频3}。')

@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, TextIO, TypedDict
 from captionqa.caption_qa_symbols import CONTENT_SYMBOLS, LITERAL_RE, SYMBOL_DELIMITERS, mask_literals, symbol_findings
 from captionqa.caption_field_schema import ALIASES as FIELD_ALIASES, is_generation_request, preferred_header_indices
+from captionqa.caption_qa_labels import separator_operations, normalize_separators
 
 
 _REQUEST_PROGRESS = ContextVar('caption_request_progress', default=None)
@@ -469,8 +470,9 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
                 empty_label = re.search(r"^[|｜]|[|｜]$|[|｜][ \t]*[|｜]", value.strip())
                 message = ("多标签列表存在空标签：请检查首尾多余竖线或连续竖线，不自动改写标签" if empty_label else
                            "多个标签应使用 | 或 ｜ 拼接，不用顿号、逗号、分号或换行；实体/IP、镜头/运镜内部的 / 保留，请人工核对")
-                errors.append(_issue("static", name, value.strip(), "label_separator",
-                    message, False))
+                safe=bool(separator_operations(name,value))
+                if safe:message='标签完整，仅将分隔符规范为竖线；标签内容与顺序保留。'
+                errors.append(_issue("static", name, value.strip(), "label_separator",message,safe))
         if name in LLM_TARGET_SECTIONS:
             view = mask_literals(value)
             for snippet, message in symbol_findings(value):
@@ -500,9 +502,10 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
 
 
 def apply_static_fixes(sections: Mapping[str, str]) -> dict[str, str]:
-    """确定性修复：裸标签、缺失句末标点；重复前缀保持原样。"""
+    """确定性修复：完整标签间的分隔符、裸标签和缺失句末标点。"""
     fixed: dict[str, str] = OrderedDict()
     for name, value in sections.items():
+        value=normalize_separators(name,value)
         if name in LLM_TARGET_SECTIONS:
             value = _normalize_tags(value)
         if name not in PUNCTUATION_EXEMPT_SECTIONS:

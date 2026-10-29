@@ -67,11 +67,18 @@ class ReviewStore:
             validate_binding(document, self.source, self.input_source, self.cache)
             from captionqa.caption_qa_candidates import enrich_candidates
             added = enrich_candidates(document)
-            if added:
+            from captionqa.caption_qa_labels import enrich_separator_fixes, POLICY as SEPARATOR_POLICY
+            separators = enrich_separator_fixes(document)
+            if added or separators:
                 document['revision'] += 1
                 policies = sorted({i['candidate_policy'] for i in document['issues'] if i.get('requires_confirmation')})
-                document['events'].append({'revision':document['revision'], 'decision':'candidates_available',
-                                          'policies':policies, 'issues':added})
+                if added:
+                    document['events'].append({'revision':document['revision'], 'decision':'candidates_available',
+                                              'policies':policies, 'issues':added})
+                for issue_id in separators:
+                    issue=next(i for i in document['issues'] if i['issue_id']==issue_id)
+                    document['events'].append({'revision':document['revision'],'decision':issue['decision'],
+                                              'issue_id':issue_id,'policy':SEPARATOR_POLICY})
                 self.save(document)
         else:
             from captionqa.caption_qa_id_list import detect_id_column

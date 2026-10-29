@@ -348,6 +348,8 @@ def _review_records(latest, *, caption_column, id_column, source_sha256):
         document["fields"].extend(field for field in field_map.values() if field["issue_ids"])
     from captionqa.caption_qa_candidates import enrich_candidates
     enrich_candidates(document)
+    from captionqa.caption_qa_labels import enrich_separator_fixes
+    enrich_separator_fixes(document)
     if automatic:
         _approve_automatic(document)
     return document
