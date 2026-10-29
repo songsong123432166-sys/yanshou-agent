@@ -10,10 +10,10 @@ def main():
     if sys.version_info<(3,10):
         print('需要 Python 3.10 或更新版本。');return 1
     try:
-        for name in ('openai','openpyxl','caption_qa_web','caption_field_jobs','caption_qa_portable_exports'):
+        for name in ('openai','openpyxl','captionqa.caption_qa_web','captionqa.caption_field_jobs','captionqa.caption_qa_portable_exports'):
             importlib.import_module(name)
-        from caption_qa_web import DEFAULT_OUTPUT_DIR
-        from caption_qa_portable_exports import repair_xlsx
+        from captionqa.caption_qa_web import DEFAULT_OUTPUT_DIR
+        from captionqa.caption_qa_portable_exports import repair_xlsx
         from openpyxl import load_workbook
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'self-check.xlsx'

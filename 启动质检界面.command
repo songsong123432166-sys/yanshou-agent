@@ -5,4 +5,4 @@ if [[ ! -x .venv/bin/python ]]; then
   read 'reply?按回车关闭…'
   exit 1
 fi
-exec .venv/bin/python caption_qa_web.py --open
+exec .venv/bin/python agent.py serve --open
