@@ -1,0 +1,38 @@
+{
+  "skill_version": "1.0.0",
+  "field_schema_version": 6,
+  "auto_fix_policy_version": 9,
+  "scope": "One structured Caption; no network calls, tables, keys or source overwrite.",
+  "shared_sources": [
+    {
+      "source": "caption_field_schema.py",
+      "source_sha256": "a5b96d4bc109a05a8d3164d88ab50be8d3ac999409cb8dd6adbf9add0ffb6927",
+      "bundled": "scripts/_schema.py",
+      "bundled_sha256": "12d0903df0620132a173149fef23ca76c940fc13255f6e8c958080e1fa215b0e"
+    },
+    {
+      "source": "caption_qa_agent.py",
+      "source_sha256": "48d787379b1233963b45860106dfbe3af6050358f83f2d16459c1b498c561dd4",
+      "bundled": "scripts/_rules.py",
+      "bundled_sha256": "150f0791a451016d6d1c9883c41b098f754702057514da563c757989ba119dee"
+    },
+    {
+      "source": "caption_qa_review.py",
+      "source_sha256": "cecc175681957c09aa271fc46642b3353d7e8288e3e097c377dd48830b03f34d",
+      "bundled": "scripts/_audio.py",
+      "bundled_sha256": "ff3b97c1b610e79ddf46c5f138c41d9bde5b1fe8299463c36b9b70aca0290426"
+    },
+    {
+      "source": "caption_qa_width.py",
+      "source_sha256": "ff260a15fc2235e8a09d91072b36be2c86f91acf5ca220b5c82e5b7704099bfd",
+      "bundled": "scripts/caption_qa_width.py",
+      "bundled_sha256": "ff260a15fc2235e8a09d91072b36be2c86f91acf5ca220b5c82e5b7704099bfd"
+    },
+    {
+      "source": "caption_qa_symbols.py",
+      "source_sha256": "6175fca3c756dcff1e770e3757c8934d11808d168374a379e3dbe4320f253db3",
+      "bundled": "scripts/caption_qa_symbols.py",
+      "bundled_sha256": "6175fca3c756dcff1e770e3757c8934d11808d168374a379e3dbe4320f253db3"
+    }
+  ]
+}

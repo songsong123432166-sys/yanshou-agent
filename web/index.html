@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="app-token" content="__APP_TOKEN__">
+  <title>Caption QA · 质检工作台</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/review.js"></script>
+  <script defer src="/app.js"></script>
+  <script defer src="/fields.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Caption QA 首页"><span class="brand-mark">c<span>q</span></span><span>Caption <b>QA</b></span></a>
+      <div class="topbar-right"><span class="local-badge"><i></i> 本地工作台</span><span class="connection" id="connection">连接中…</span></div>
+    </header>
+    <main>
+      <section class="intro">
+        <div class="eyebrow">CAPTION QUALITY ASSURANCE</div>
+        <h1>放进文件，<span>把细节检查好。</span></h1>
+        <p>只检查 Caption 列中的内容，其他列与原始文本保持不变。</p>
+      </section>
+      <div class="workspace">
+        <section class="upload-panel panel" aria-labelledby="upload-title">
+          <div class="section-heading"><div><span class="step">01</span><h2 id="upload-title">添加文件</h2></div><span class="subtle">可一次添加多个</span></div>
+          <input id="file-input" type="file" accept=".xlsx,.csv,.jsonl,.json" multiple hidden>
+          <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="选择或拖入需要质检的文件">
+            <div class="upload-icon"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M16 21V6m0 0-6 6m6-6 6 6M6 21v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>把文件拖到这里</h3><p>或<span class="browse-link">点击选择文件</span></p>
+            <div class="format-list"><span>XLSX</span><span>CSV</span><span>JSONL</span><span>JSON</span></div>
+            <small>单个文件最大 100 MB · 原始文件保持不变</small>
+          </div>
+          <div id="selected-area" class="selected-area" hidden><div class="selection-heading"><span id="selected-count"></span><button class="text-button" id="clear-files">清空</button></div><ul id="selected-files"></ul></div>
+          <fieldset class="mode-picker"><legend>检查模式</legend><label><input type="radio" name="mode" value="static"><span><strong>底线检查</strong><small>本地规则，不调用 API</small></span></label><label><input type="radio" name="mode" value="full" checked><span><strong>语义辅助筛查</strong><small>调用 MiMo API，疑似问题供人工复核</small></span><span class="recommended">默认</span></label></fieldset>
+          <details class="advanced"><summary>更多设置<span>列名、工作表与并行条数</span></summary><div class="advanced-grid"><label>Caption 列名<input id="column" placeholder="留空自动识别"></label><label>ID 列名<input id="id-column" placeholder="留空自动识别，也可填 A"></label><label>工作表名称<input id="sheet" placeholder="留空自动查找数据页"></label><label>并行条数<input id="concurrency" type="number" min="1" max="10" value="8"></label></div><p>默认同时检查 8 条，可调整为 1–10 条。接口限流时可降低并行数后重试，已完成记录保留。</p></details>
+          <div id="message" class="message" role="status" hidden></div>
+          <button id="start-button" class="primary-button" disabled><span>开始质检</span><span aria-hidden="true">↗</span></button>
+          <p class="submit-note" id="submit-note">添加文件后即可开始</p>
+        </section>
+        <section class="field-panel panel" aria-labelledby="field-title">
+          <div class="section-heading field-panel-heading"><div><span class="step">↳</span><h2 id="field-title">字段一键规范</h2></div><div class="field-panel-actions"><span id="field-panel-status" class="subtle" aria-live="polite">独立于内容质检</span><button id="field-panel-toggle" class="text-button" type="button" aria-expanded="true" aria-controls="field-panel-body">▴ 收起</button></div></div>
+          <div id="field-panel-body" class="field-panel-body">
+          <p>旧英文标题、新旧字段混用或缺少 ##，统一整理为新版 12 个字段。视觉标签字段使用 video_similarity_tag；## 后须有一个半角空格，例如 ## 任务类型。每个字段内容结束后留一个空行；正文内部空格与分段保留，仅处理指定 Caption 列。这里只整理字段，不判定正文是否合格。</p>
+          <input id="field-file" type="file" accept=".xlsx,.csv,.jsonl,.json" hidden>
+          <div id="field-dropzone" class="dropzone field-dropzone" role="button" tabindex="0" aria-label="选择或拖入需要规范字段的文件"><strong>拖入需要整理字段的文件</strong><span id="field-selected">或点击选择 CSV / XLSX / JSONL / JSON</span></div>
+          <details class="advanced"><summary>字段规范设置<span>列名、工作表与任务标签映射</span></summary><div class="advanced-grid">
+            <label>Caption 列名<input id="field-column" placeholder="留空按列名识别，兼容旧字段"></label>
+            <label>ID 列名<input id="field-id-column" placeholder="留空识别真实题目 ID"></label>
+            <label>工作表名称<input id="field-sheet" placeholder="多个数据页时请指定"></label>
+            <label>并行条数<input id="field-concurrency" type="number" min="1" max="10" value="8"></label>
+          </div><label class="field-map-label">旧任务类型 → 新版标签映射（JSON，可留空）<textarea id="field-task-map" rows="3" placeholder='例如：{"旧任务类型 / 旧子类型":["新版标签"]}'></textarea></label><p>旧 task_type 为“参考”时自动输出单独 ID 名单，无需填写映射。task_type 已是明确的新版子任务标签时直接保留标签并更正标题；subtask_type 错放的明确生成要求归入“提示”。已有提示正文时先确认，避免覆盖。新版任务类型保留原值；其他旧值无明确映射时原行保留并列需确认，不猜测任务含义。需要正文归类时调用 MiMo；已规范或只需统一标题的完整记录在本地处理。</p></details>
+          <button id="field-start" class="primary-button" disabled><span>开始字段规范</span><span aria-hidden="true">↗</span></button>
+          <div id="field-message" class="message" role="status" hidden></div>
+          <div id="field-jobs" aria-live="polite"></div>
+          </div>
+        </section>
+        <aside class="side-column">
+          <section class="output-panel panel"><div class="small-label">OUTPUT DESTINATION</div><h2>基础问题自动修正，其余人工审核</h2><div class="folder-icon"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M4 10a2 2 0 0 1 2-2h7l3 3h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2-2V10Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></div><div class="output-title">下载文件夹</div><code id="output-dir">/Users/bili/Downloads</code><p>审核表只列人工处理项：需要确认的候选改正，以及需要判断或改写的内容。保留真实题目 ID、标红原句和主体上下文。可在网页确认、驳回或填写人工最终稿，也可编辑审核表后回传。基础标点、规范明确的全半角符号、既有编号标签格式和词表错字默认自动修正，直接另存新副本；病句、主体和事实问题仍需人工，修改前后记录保留。</p><div class="output-footer"><span>问题 ID 名单</span><span>跳过原因说明</span></div></section>
+          <section class="rules-panel"><div class="rule-title"><span class="tiny-check">✓</span><h2>底线：只判明确规范</h2></div><p>默认自动执行的安全格式修正：</p><ol><li>已有标签补尖括号、规范标签内空格</li><li>按约定补齐句末标点</li><li>按规范统一全角/半角符号，保留音频内部和画面文字原文</li></ol><div class="rules-note">句末标点仅豁免：任务类型、similarity_label、video_similarity_tag、audio_similarity_tag（含 task_type、subtask_type、similarity_tag、视听标签等已知同义字段）。其他非空段落需句末标点，内容为“无”也需补；仅当 } 位于段尾且无后续文字或句末标点时补外层句号；句中 } 后还有内容不补。</div><details class="rules-note"><summary>内容符号规范</summary><table class="check-report-table"><thead><tr><th>内容</th><th>符号</th></tr></thead><tbody><tr><td>任务类型 / 视听标签</td><td><code>| 或 ｜</code></td></tr><tr><td>输入参考素材</td><td><code>&lt;图片X&gt; / &lt;视频X&gt; / &lt;音频X&gt;</code></td></tr><tr><td>主体 / 场景</td><td><code>&lt;主体n&gt; / &lt;场景n&gt;</code></td></tr><tr><td>人声（对白、演唱）</td><td><code>{}</code></td></tr><tr><td>音效 / 环境音</td><td><code>&lt;&gt;</code>，允许整段描述</td></tr><tr><td>音乐</td><td><code>（）</code>，中文全角括号</td></tr><tr><td>画面文字</td><td><code>【】</code></td></tr></tbody></table><p>符号配对不完整需人工核对；内容类别和包裹符号是否对应，由语义辅助复核，不自动改写人声或画面文字。任务类型和视听标签用 | 或 ｜ 拼接，例如人物参考|动态参考；实体/IP中的 / 不拆分。</p></details><div class="rules-note"><strong>主体一致性底线：</strong>主体定义不能重号、编号需连续；总结和自然指令不能引用未定义主体；每个已定义主体都须在自然指令中明确引用。描述内引用不算重复定义。重复前缀、叠词、属性冲突仍不检查。</div><div class="rules-note"><strong>底线通过的含义：</strong>通过上述格式、标签和主体规范检查。病句、词表之外的疑似错别字和画面事实由人工确认；语义辅助结果不作底线结论。跳过或解析失败不等于通过。</div></section>
+        </aside>
+      </div>
+      <section class="history-section" aria-labelledby="history-title"><div class="section-heading"><div><span class="step">02</span><h2 id="history-title">处理记录</h2><span class="count-badge" id="job-count">0</span></div><span class="subtle">本地处理历史</span></div><div id="empty-state" class="empty-state"><span class="empty-symbol">↳</span><div><strong>还没有处理记录</strong><p>添加文件并开始质检，进度和结果会显示在这里。</p></div></div><div id="jobs" aria-live="polite"></div></section>
+    </main>
+    <footer><span>Caption QA</span><span>文件在本机处理 · 完整质检时将 Caption 核心字段发送至 MiMo</span></footer>
+  </div>
+</body>
+</html>

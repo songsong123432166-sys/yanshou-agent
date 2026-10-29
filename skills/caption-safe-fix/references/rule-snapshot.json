@@ -1,0 +1,11 @@
+{
+  "policy_version": 9,
+  "auto_fix": [
+    "existing_numbered_tag_format",
+    "paragraph_terminal_punctuation"
+  ],
+  "source_sha256": {
+    "caption_qa_agent.py": "fd2cc45ea801884595803fee32a696684b7a727fb17cd7257d993bede8eb3e23",
+    "caption_qa_symbols.py": "6175fca3c756dcff1e770e3757c8934d11808d168374a379e3dbe4320f253db3"
+  }
+}

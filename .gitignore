@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+.local/
+.venv/
+
+# Local credentials and macOS metadata
+.DS_Store
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Generated reports, exported data and distribution packages
+/outputs/
+/dist/
+
+# Keep acceptance source and documentation; exclude real-data results/caches
+/acceptance/*
+!/acceptance/*.py
+!/acceptance/*.md
+!/acceptance/verify_review_ui.mjs
+!/acceptance/verify_confirmed_punctuation.mjs
+!/acceptance/verify_field_normalization.mjs
