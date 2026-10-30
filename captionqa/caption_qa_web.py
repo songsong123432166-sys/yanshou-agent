@@ -617,8 +617,12 @@ class App:
             if field['field_id'] in document['field_edits'] or not issue['sample_id']:
                 raise ValueError('本字段已有人工稿或缺少题目 ID，不能生成改稿。')
             issue,field=copy.deepcopy(issue),copy.deepcopy(field)
+            plan=self._review_store(job).plan(document)
+            row=next(row for row in plan.rows if row.row_index==issue['row_index'])
+            context_sections=qa.parse_caption_sections(row.final_text)
         # Network work must not hold the application-wide review lock.
-        proposal=prepare_proposal(issue,field,api_key=read_saved_key(),base_url=BASE_URL,model=MODEL)
+        proposal=prepare_proposal(issue,field,api_key=read_saved_key(),base_url=BASE_URL,model=MODEL,
+                                  context_sections=context_sections)
         proposed=dict(issue,suggestion_candidate=proposal)
         operations=candidate_operations(proposed,field['original'])
         if not operations:

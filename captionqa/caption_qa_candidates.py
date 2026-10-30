@@ -278,6 +278,9 @@ def raw_candidate_operations(issue,original):
     # Preserve saved narrow candidates exactly, so existing approvals remain
     # verifiable when the human-confirmation scope expands.
     from captionqa.caption_qa_suggestions import operations
+    from captionqa.caption_qa_reference_drafts import POLICY as REFERENCE_POLICY, draft_operations
+    if (issue.get('suggestion_candidate') or {}).get('policy')==REFERENCE_POLICY:
+        return draft_operations(issue,original)
     if issue.get('suggestion_candidate'):
         return operations(issue,original)
     return _restricted_operations(issue,original) or _rewrite_operations(issue,original) or operations(issue,original)

@@ -60,7 +60,7 @@ async function reviewRequest(job,path,body,rawOptions,batch=false) {
     if(body?.issue_id){
       const issue=result.review.issues.find(item=>item.issue_id===body.issue_id);
       view.recent.add(body.issue_id);
-      const text=path==='/propose'?'AI 改稿已生成，尚未执行。请核对修改前后，再点“确认按建议改”。':`已保存：题目 ${issue.sample_id||'ID 缺失'} · ${reviewNames[issue.decision]}。${body.decision==='approve'?'该修改将在导出审核后版本时应用。':body.decision==='keep_highlight'?'仅保留当前问题，其余修改照常；导出审核后版本时 Caption 单元格标黄。':''}`;
+      const text=path==='/propose'?'AI 推荐改稿已生成，尚未执行。请核对修改前后和说明，再决定是否采用。':`已保存：题目 ${issue.sample_id||'ID 缺失'} · ${reviewNames[issue.decision]}。${body.decision==='approve'?'该修改将在导出审核后版本时应用。':body.decision==='keep_highlight'?'仅保留当前问题，其余修改照常；导出审核后版本时 Caption 单元格标黄。':''}`;
       view.feedback={issue_id:body.issue_id,kind:'success',text};
     }else if(body?.field_id){
       for(const issue of result.review.issues.filter(item=>item.field_id===body.field_id))view.recent.add(issue.issue_id);
@@ -195,7 +195,7 @@ function renderReviewPanel(job) {
       item.dataset.issueId=issue.issue_id;
       const postcheck=reviewChecks.some(w=>w.issue_id===issue.issue_id);
       item.append(element('strong','',`【${issue.label}】${postcheck?'人工稿已保存 · 需复核':reviewNames[issue.decision]}`),element('p','',issue.reason));
-      item.append(element('p','partial-note',issue.operations.length?'处理方式：人工确认改正':'处理方式：可先让 AI 按建议生成改稿，再人工确认'));
+      item.append(element('p','partial-note',issue.operations.length?'处理方式：人工确认改正':'处理方式：可先生成 AI 推荐改稿，再人工确认'));
       issue.excerpts.forEach((excerpt,index)=>item.append(sourceExcerpt(excerpt,issue.snippet,issue.excerpt_highlights?.[index])));
       const buttons=element('div','review-toolbar');
       for(const decision of ['approve','reject','keep','keep_highlight','defer','pending']){
@@ -207,29 +207,38 @@ function renderReviewPanel(job) {
         if(selected){button.classList.add('is-selected');button.textContent=`✓ ${label}`;}
         if(view.busy&&view.saving?.issue_id===issue.issue_id&&view.saving.decision===decision)button.textContent='正在保存…';
         button.disabled=view.busy||view.batchSaving||(decision==='approve'&&Object.hasOwn(documentData.field_edits,field.field_id))||(decision==='approve'&&(!issue.operations.length||!field.sample_id));
-        if(decision==='approve'&&!issue.operations.length){button.textContent=issue.candidate_satisfied?'无需重复修改':'待生成改稿';button.title='先点“让 AI 按建议生成改稿”，核对修改前后即可确认。也可人工填写。';}
+        if(decision==='approve'&&!issue.operations.length){button.textContent=issue.candidate_satisfied?'无需重复修改':'待生成改稿';button.title='先点“生成 AI 推荐改稿”，核对修改前后即可确认。也可人工填写。';}
         else if(decision==='approve'&&!field.sample_id){button.textContent='缺少题目 ID';button.title='原表缺少真实题目 ID，暂不能确认修改。';}
         if(decision==='keep_highlight'){button.title='仅保留当前问题，其余修改照常；导出审核后版本时整条 Caption 单元格标黄。CSV 另生成标黄 Excel。';if(!field.sample_id)button.disabled=true;}
         if(selected)button.disabled=true;
         button.onclick=()=>reviewRequest(job,'',{revision:documentData.revision,issue_id:issue.issue_id,decision});buttons.append(button);
       }
       if(issue.operations.length){
+        const referenceDraft=issue.suggestion_candidate?.policy==='confirmed-reference-draft-v2';
         const candidateApproved=issue.decision==='approve';
         if(issue.requires_confirmation)item.append(element('p','partial-note',candidateApproved?'候选已确认；导出审核后版本时应用下方替换，无需手写整段。':issue.decision==='manual'?'本字段已有人工定稿，以下保留原候选供核对。':'AI 已给出明确候选，尚未执行。核对下方替换内容后可点“确认按建议改”，无需手写整段。'));
-        if(issue.operations.some(op=>op.candidate_scope==='音频正文'))item.append(element('p','partial-note','此候选涉及音频正文，请核对原始音频后再确认。未经确认不会修改。'));
+        if(issue.operations.some(op=>op.candidate_scope?.includes('音频')))item.append(element('p','partial-note','此候选涉及音频正文，请核对原始音频后再确认。未经确认不会修改。'));
         if(issue.suggestion_candidate?.explanation)item.append(element('p','partial-note',`改稿说明：${issue.suggestion_candidate.explanation}`));
+        for(const assumption of issue.suggestion_candidate?.assumptions||[])item.append(element('p','partial-note review-draft-assumption',`请核对：${assumption}`));
+        if(referenceDraft)item.append(element('p','partial-note',candidateApproved?'该 AI 推荐已由你确认，导出审核后版本时应用。':'这是 AI 推荐答案，尚未代表人工认可。你可以确认采用、保留原文或判为误报。'));
         const details=element('details','review-proposal');details.open=Boolean(issue.requires_confirmation);details.append(element('summary','',issue.requires_confirmation?`候选替换（${candidateApproved?'已确认':['reject','keep','keep_highlight','manual'].includes(issue.decision)?'未采用':'待人工确认'}）`:'指定修改内容'));
         const proposals=[...new Set(issue.operations.map(op=>`${op.candidate_old||op.old||'（补入位置）'} → ${op.candidate_new||op.new||'（删除）'}`))];
         for(const proposal of proposals)details.append(element('pre','review-source',proposal));
         item.append(details);
+        if(referenceDraft&&['pending','defer'].includes(issue.decision)){
+          const regenerate=element('button','secondary-button','重新生成推荐改稿');
+          regenerate.disabled=view.busy||view.batchSaving||Object.hasOwn(documentData.field_edits,field.field_id);
+          regenerate.onclick=()=>reviewRequest(job,'/propose',{revision:documentData.revision,issue_id:issue.issue_id});
+          item.append(regenerate);
+        }
       }else if(issue.candidate_satisfied){
         item.append(element('p','partial-note','原文已有所建议标点，无需重复插入。可选择保留原文或误报。'));
       }else{
-        item.append(element('p','partial-note','报告尚未转成具体改稿。可让 AI 按这条建议生成修改前后，核对并确认；缺少事实依据时仍需人工判断。'));
+        item.append(element('p','partial-note','点击生成推荐答案，AI 会结合当前段落和其他字段给出一份改稿。先看修改前后和核对说明，再决定是否采用。'));
         if(['pending','defer'].includes(issue.decision)){
-          const propose=element('button','secondary-button','让 AI 按建议生成改稿');
+          const propose=element('button','secondary-button','生成 AI 推荐改稿');
           propose.disabled=view.busy||!field.sample_id||Object.hasOwn(documentData.field_edits,field.field_id);
-          propose.title='调用 MiMo 处理本字段和该条建议；生成候选后仍须确认，不直接改原文。';
+          propose.title='调用 MiMo 结合上下文生成一个推荐答案；可列出待核对的理解，确认后才应用。';
           if(view.busy&&view.saving?.issue_id===issue.issue_id&&!view.saving.decision)propose.textContent='AI 正在生成改稿…';
           propose.onclick=()=>reviewRequest(job,'/propose',{revision:documentData.revision,issue_id:issue.issue_id});
           item.append(propose);

@@ -17,6 +17,7 @@ def resolve_field(document, field, issues):
         selected = [normalized_candidate(i,old) for i in selected]
         from captionqa.caption_qa_candidates import valid_candidate, candidate_operations, PUNCTUATION_POLICY, EXPLICIT_PUNCTUATION_POLICY, REWRITE_POLICY
         from captionqa.caption_qa_suggestions import POLICY as SUGGESTION_POLICY
+        from captionqa.caption_qa_reference_drafts import POLICY as REFERENCE_POLICY
         for issue in selected:
             from captionqa.caption_qa_labels import POLICY as SEPARATOR_POLICY
             if issue.get('separator_policy')==SEPARATOR_POLICY:
@@ -49,7 +50,7 @@ def resolve_field(document, field, issues):
             width_ok=(bool(op.get('width_rule')) and (document['workflow_version']==AUTO_WORKFLOW or candidate_width)
                       and valid_operation(field['name'],old,op,exempt=field['name'] in qa.PUNCTUATION_EXEMPT_SECTIONS))
             width_ok=width_ok or (candidate_width and bool(op.get('confirmed_audio_width')))
-            confirmed_candidate=(op.get('candidate_policy') in {EXPLICIT_PUNCTUATION_POLICY,REWRITE_POLICY,SUGGESTION_POLICY} and
+            confirmed_candidate=(op.get('candidate_policy') in {EXPLICIT_PUNCTUATION_POLICY,REWRITE_POLICY,SUGGESTION_POLICY,REFERENCE_POLICY} and
                                  any(i['decision']=='approve' and i.get('requires_confirmation') and valid_candidate(i,old,op) for i in selected))
             if old[op["start"]:op["end"]] != op["old"] or (op.get('width_rule') and not width_ok) or (touches_audio(audio_text, op["start"], op["end"]) and not (width_ok or confirmed_candidate)):
                 raise ValueError("指定修改与原文或音频保护范围不一致，已停止回填。")
