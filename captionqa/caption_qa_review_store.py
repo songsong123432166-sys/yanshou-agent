@@ -66,11 +66,17 @@ class ReviewStore:
             document = json.loads(self.path.read_text())
             validate_binding(document, self.source, self.input_source, self.cache)
             from captionqa.caption_qa_candidates import enrich_candidates
+            from captionqa.caption_qa_candidate_context import normalize_saved_candidates
+            contextual = normalize_saved_candidates(document)
             added = enrich_candidates(document)
             from captionqa.caption_qa_labels import enrich_separator_fixes, POLICY as SEPARATOR_POLICY
             separators = enrich_separator_fixes(document)
-            if added or separators:
+            if added or separators or contextual:
                 document['revision'] += 1
+                if contextual:
+                    document['events'].append({'revision':document['revision'],
+                        'decision':'candidate_context_normalized', 'issue_ids':contextual,
+                        'reason':'避免候选重复插入原文已有标点；人工决定与人工稿保留。'})
                 policies = sorted({i['candidate_policy'] for i in document['issues'] if i.get('requires_confirmation')})
                 if added:
                     document['events'].append({'revision':document['revision'], 'decision':'candidates_available',

@@ -15,7 +15,10 @@ from captionqa.caption_qa_review_state import highlighted_rows, automatic_issue_
 
 
 def document_fingerprint(document):
-    raw = json.dumps(document, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
+    # Export caches bind both the saved review and the resolver contract.
+    # A code fix must not reuse an older file produced by a previous resolver.
+    raw = json.dumps({'resolver_version':'review-export-v2', 'document':document},
+                     sort_keys=True, ensure_ascii=False, separators=(',', ':'))
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
@@ -31,6 +34,7 @@ class ReviewPlan:
     _audit: object
     _rechecks: object
     _blockers: object
+    _review_checks: object
     automatic_ids: tuple
     visible_ids: tuple
 
@@ -49,6 +53,9 @@ class ReviewPlan:
     @property
     def blockers(self):return thaw(self._blockers)
 
+    @property
+    def review_checks(self):return thaw(self._review_checks)
+
     def require_valid(self):
         if self.blockers:
             item = self.blockers[0]
@@ -66,6 +73,8 @@ class ReviewPlan:
                 'fingerprint':self.fingerprint, 'source_sha256':self.source_sha256,
                 'fields':{field.field_id:field.public() for field in self.fields},
                 'blockers':list(self.blockers), 'export_ready':not self.blockers,
+                'review_checks':list(self.review_checks),
+                'review_check_fields':len({w['field_id'] for w in self.review_checks}),
                 'changed_captions':len(self.captions),
                 'highlighted_captions':len(self.highlights),
                 'automatic_issue_ids':list(self.automatic_ids),
@@ -133,7 +142,10 @@ def compile_review(document, records):
             audit.append({'题目 ID':field['sample_id'], '字段':field['name'], '修改来源':field['mode'],
                           '修改前':field['original'], '修改后':field['after'], 'field_id':field['field_id'],
                           'source_sheet':field['source_sheet'], 'source_row':field['source_row']})
+    from captionqa.caption_qa_review_checks import assess_review
+    review_checks=assess_review(document,fields,rows)
     return ReviewPlan(document['revision'], document_fingerprint(document), document['source_sha256'],
         fields, tuple(rows), freeze(highlights), freeze(changes), freeze(audit), freeze(rechecks), freeze(blockers),
+        freeze(review_checks),
         tuple(sorted(automatic_issue_ids(document))),
         tuple(issue['issue_id'] for issue in human_review_issues(document)))

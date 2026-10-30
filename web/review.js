@@ -5,9 +5,49 @@ function reviewState(id) {
   if (!reviewUI.has(id)) reviewUI.set(id,{open:false,attachmentsOpen:false,data:null,busy:false,error:'',feedback:null,saving:null,recent:new Set(),drafts:new Map(),page:0,filter:'pending'});
   return reviewUI.get(id);
 }
-async function reviewRequest(job,path,body,rawOptions) {
+function dirtyReviewFields(view) {
+  if(!view.data?.projection)return [];
+  return view.data.review.fields.filter(f=>view.drafts.has(f.field_id)&&
+    view.drafts.get(f.field_id)!==view.data.projection.fields[f.field_id]?.editor_text);
+}
+function refreshDraftNotice(job,panel,apply,notice) {
+  const view=reviewState(job.id),dirty=dirtyReviewFields(view);
+  apply.disabled=view.busy||view.batchSaving||job.repair_exporting||!view.data.projection.export_ready||dirty.length>0;
+  notice.replaceChildren();notice.hidden=!dirty.length;
+  const title=panel.querySelector('[data-export-status]');
+  if(title)title.textContent=dirty.length?'上次导出未包含当前未保存输入':title.dataset.savedExportStatus;
+  if(!dirty.length)return;
+  notice.append(element('p','',`${dirty.length} 个字段有未保存改稿，尚未包含在导出文件中。请保存或放弃这些输入后再导出。`));
+  notice.append(element('p','partial-note',dirty.map(f=>`${f.sample_id||'ID缺失'} · ${f.name}`).join('；')));
+  const locate=element('button','secondary-button','定位未保存改稿');
+  locate.onclick=()=>{view.filter='unsaved';view.page=0;view.recent.clear();renderJobs();};
+  const save=element('button','secondary-button',view.batchSaving?'正在保存全部改稿…':'保存全部改稿');
+  save.disabled=view.busy||view.batchSaving;
+  save.onclick=async()=>{
+    view.batchSaving=true;
+    try{
+      for(const field of dirtyReviewFields(view)){
+        const text=view.drafts.get(field.field_id);
+        const ok=await reviewRequest(job,'',{revision:view.data.review.revision,field_id:field.field_id,final_text:text},null,true);
+        if(!ok)break;
+      }
+    }finally{view.batchSaving=false;renderJobs();}
+  };
+  const discard=element('button','secondary-button','放弃未保存输入');
+  discard.disabled=view.busy||view.batchSaving;
+  discard.onclick=()=>{for(const field of dirtyReviewFields(view))view.drafts.delete(field.field_id);renderJobs();};
+  notice.append(locate,save,discard);
+}
+window.addEventListener('beforeunload',event=>{
+  if([...reviewUI.values()].some(view=>dirtyReviewFields(view).length)){event.preventDefault();event.returnValue='';}
+});
+async function reviewRequest(job,path,body,rawOptions,batch=false) {
   const view=reviewState(job.id);
-  if(view.busy)return;
+  if(view.busy||(view.batchSaving&&!batch))return false;
+  if(path==='/apply'&&dirtyReviewFields(view).length){
+    view.error='有未保存改稿，请先保存或放弃输入后再导出。';renderJobs();return false;
+  }
+  let succeeded=false;
   view.busy=true;view.error='';view.feedback=null;
   view.saving=body?.issue_id||body?.field_id ? body : null;
   renderJobs();
@@ -15,6 +55,7 @@ async function reviewRequest(job,path,body,rawOptions) {
     const options=rawOptions || (body ? {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)} : {});
     const result=await api(`/api/jobs/${job.id}/review${path}`,options);
     if(result.review) view.data=result;
+    if(body?.field_id&&(body.reset||view.drafts.get(body.field_id)===body.final_text))view.drafts.delete(body.field_id);
     if(result.projection)Object.assign(reviewNames,result.projection.decision_labels);
     if(body?.issue_id){
       const issue=result.review.issues.find(item=>item.issue_id===body.issue_id);
@@ -29,16 +70,18 @@ async function reviewRequest(job,path,body,rawOptions) {
     }
     if(path==='/apply'){
       job.review_output=result;
-      const text=`审核后版本已导出：${result.changed_captions} 条 Caption${result.highlighted_captions?`；${result.highlighted_path?'标黄':'待标黄'} ${result.highlighted_captions} 条`:''}；剩余 ${result.remaining_review_items} 项待处理。${(result.export_warnings||[]).join(' ')||result.highlight_warning||''}`;
+      const text=`审核后版本已导出：${result.changed_captions} 条 Caption${result.highlighted_captions?`；${result.highlighted_path?'标黄':'待标黄'} ${result.highlighted_captions} 条`:''}；剩余 ${result.remaining_review_items} 项待处理。${result.post_review_fields?`另有 ${result.post_review_fields} 个已保存字段需复核，可通过“定稿后需复核”查看。`:''}${(result.export_warnings||[]).join(' ')||result.highlight_warning||''}`;
       message(text);view.feedback={kind:'success',text};
     }
     if(path==='/export') message('审核表已导出，可编辑审核结论和人工改稿后回传。');
+    succeeded=true;
     await refreshJobs();
   } catch(error) {
     view.error=path==='/apply'?`审核后版本未导出：${error.message} 已保存的审核结论仍保留。`:`保存或操作未完成：${error.message}`;
     view.feedback={issue_id:body?.issue_id,field_id:body?.field_id,kind:'error',text:view.error};
   }
   finally {view.busy=false;view.saving=null;renderJobs();}
+  return succeeded;
 }
 function sourceExcerpt(text,snippet,ranges) {
   const pre=element('pre','review-source');
@@ -84,6 +127,9 @@ function renderReviewPanel(job) {
   const automaticIds=new Set(projection.automatic_issue_ids);
   const visibleIds=new Set(projection.visible_issue_ids);
   const humanIssues=documentData.issues.filter(i=>visibleIds.has(i.issue_id));
+  const reviewChecks=projection.review_checks||[];
+  const recheckFields=new Set(reviewChecks.map(w=>w.field_id));
+  const dirtyFields=new Set(dirtyReviewFields(view).map(f=>f.field_id));
   const blockedFields=new Set(projection.blockers.map(item=>item.field_id));
   if(blockedFields.size){
     const warning=element('div','job-error',`${blockedFields.size} 个字段的改稿暂不能安全应用，已保存的审核结论仍保留。`);
@@ -92,10 +138,15 @@ function renderReviewPanel(job) {
   }
   panel.append(element('strong','',`共 ${humanIssues.length} 项人工处理 · 待处理 ${summary.pending} 项 · 人工定稿 ${summary.manual_fields} 个字段`));
   if(summary.highlighted_captions)panel.append(element('p','review-highlight-note',`已选择 ${summary.highlighted_captions} 条 Caption 标黄；仅保留对应问题，其余修改照常。导出后生效。`));
+  if(recheckFields.size){
+    const warning=element('div','job-error',`${recheckFields.size} 个已保存字段需复核。此提示不阻止导出，人工稿仍按保存内容输出。`);
+    const locate=element('button','secondary-button','定位定稿后需复核字段');
+    locate.onclick=()=>{view.filter='recheck';view.page=0;view.recent.clear();renderJobs();};warning.append(locate);panel.append(warning);
+  }
   const toolbar=element('div','review-toolbar');
   const filter=document.createElement('select');
   filter.setAttribute('aria-label','筛选审核结论');
-  for(const [value,label] of [['pending','待处理'],['confirm','人工确认改正'],['rewrite','人工判断 / 改写'],['all','全部人工项'],['approved','已确认修改'],['rejected','误报 / 保留'],['blocked','无法应用的字段']]) {
+  for(const [value,label] of [['pending','待处理'],['confirm','人工确认改正'],['rewrite','人工判断 / 改写'],['all','全部人工项'],['approved','已确认修改'],['rejected','误报 / 保留'],['blocked','无法应用的字段'],['unsaved','未保存改稿'],['recheck','定稿后需复核']]) {
     const option=element('option','',label);option.value=value;filter.append(option);
   }
   filter.value=view.filter;filter.onchange=()=>{view.filter=filter.value;view.page=0;view.recent.clear();renderJobs();};
@@ -114,10 +165,11 @@ function renderReviewPanel(job) {
   for(const button of [exportButton,importButton,apply])button.disabled=view.busy||job.repair_exporting;
   apply.disabled=apply.disabled||!projection.export_ready;
   toolbar.append(apply,exportButton,importButton,input);panel.append(toolbar);
+  const draftNotice=element('div','job-error review-unsaved');draftNotice.setAttribute('role','status');panel.append(draftNotice);
   panel.append(element('p','partial-note','上传原文件作为未审核版本保留。导出审核后版本会合并自动修正、已确认修改和人工稿；保留或待处理项按原文输出。没有文字改动也能导出。'));
   const byId=new Map(documentData.issues.map(issue=>[issue.issue_id,issue]));
   const accepted=issue=>!automaticIds.has(issue.issue_id)&&(view.filter==='all'||
-    (view.filter==='blocked'&&blockedFields.has(issue.field_id))||(view.filter==='confirm'&&issue.operations.length>0)||(view.filter==='rewrite'&&!issue.operations.length)||
+    (view.filter==='blocked'&&blockedFields.has(issue.field_id))||(view.filter==='unsaved'&&dirtyFields.has(issue.field_id))||(view.filter==='recheck'&&recheckFields.has(issue.field_id))||(view.filter==='confirm'&&issue.operations.length>0)||(view.filter==='rewrite'&&!issue.operations.length)||
     (view.filter==='pending'&&(['pending','defer'].includes(issue.decision)||view.recent.has(issue.issue_id)))||
     (view.filter==='approved'&&['approve','manual'].includes(issue.decision))||(view.filter==='rejected'&&['reject','keep','keep_highlight'].includes(issue.decision)));
   if(view.filter==='pending'&&view.recent.size)panel.append(element('p','partial-note','本次刚审核的项目暂留原位，便于核对；切换筛选后仅显示对应项目。'));
@@ -135,12 +187,14 @@ function renderReviewPanel(job) {
     const resolution=projection.fields[field.field_id];
     const group=element('article',`review-field${yellowRows.has(field.row_index)?' is-highlighted-caption':''}`);
     group.append(element('h3','',`题目 ID：${field.sample_id||'原表缺失，须先补齐'} · ${field.name}`));
+    for(const warning of reviewChecks.filter(w=>w.field_id===field.field_id))group.append(element('p','job-error review-postcheck',warning.message+(warning.excerpt?` ${warning.excerpt}`:'')));
     if(resolution.error){const warning=element('div','job-error',`此字段暂不能应用：${resolution.error}`);warning.setAttribute('role','alert');group.append(warning);}
     const issues=field.issue_ids.map(id=>byId.get(id));
     for(const issue of issues.filter(accepted)){
       const item=element('div',`review-issue review-status-${issue.decision}`);
       item.dataset.issueId=issue.issue_id;
-      item.append(element('strong','',`【${issue.label}】${reviewNames[issue.decision]}`),element('p','',issue.reason));
+      const postcheck=reviewChecks.some(w=>w.issue_id===issue.issue_id);
+      item.append(element('strong','',`【${issue.label}】${postcheck?'人工稿已保存 · 需复核':reviewNames[issue.decision]}`),element('p','',issue.reason));
       item.append(element('p','partial-note',issue.operations.length?'处理方式：人工确认改正':'处理方式：可先让 AI 按建议生成改稿，再人工确认'));
       issue.excerpts.forEach((excerpt,index)=>item.append(sourceExcerpt(excerpt,issue.snippet,issue.excerpt_highlights?.[index])));
       const buttons=element('div','review-toolbar');
@@ -152,8 +206,8 @@ function renderReviewPanel(job) {
         button.setAttribute('aria-pressed',String(selected));
         if(selected){button.classList.add('is-selected');button.textContent=`✓ ${label}`;}
         if(view.busy&&view.saving?.issue_id===issue.issue_id&&view.saving.decision===decision)button.textContent='正在保存…';
-        button.disabled=view.busy||Object.hasOwn(documentData.field_edits,field.field_id)||(decision==='approve'&&(!issue.operations.length||!field.sample_id));
-        if(decision==='approve'&&!issue.operations.length){button.textContent='待生成改稿';button.title='先点“让 AI 按建议生成改稿”，核对修改前后即可确认。也可人工填写。';}
+        button.disabled=view.busy||view.batchSaving||(decision==='approve'&&Object.hasOwn(documentData.field_edits,field.field_id))||(decision==='approve'&&(!issue.operations.length||!field.sample_id));
+        if(decision==='approve'&&!issue.operations.length){button.textContent=issue.candidate_satisfied?'无需重复修改':'待生成改稿';button.title='先点“让 AI 按建议生成改稿”，核对修改前后即可确认。也可人工填写。';}
         else if(decision==='approve'&&!field.sample_id){button.textContent='缺少题目 ID';button.title='原表缺少真实题目 ID，暂不能确认修改。';}
         if(decision==='keep_highlight'){button.title='仅保留当前问题，其余修改照常；导出审核后版本时整条 Caption 单元格标黄。CSV 另生成标黄 Excel。';if(!field.sample_id)button.disabled=true;}
         if(selected)button.disabled=true;
@@ -168,6 +222,8 @@ function renderReviewPanel(job) {
         const proposals=[...new Set(issue.operations.map(op=>`${op.candidate_old||op.old||'（补入位置）'} → ${op.candidate_new||op.new||'（删除）'}`))];
         for(const proposal of proposals)details.append(element('pre','review-source',proposal));
         item.append(details);
+      }else if(issue.candidate_satisfied){
+        item.append(element('p','partial-note','原文已有所建议标点，无需重复插入。可选择保留原文或误报。'));
       }else{
         item.append(element('p','partial-note','报告尚未转成具体改稿。可让 AI 按这条建议生成修改前后，核对并确认；缺少事实依据时仍需人工判断。'));
         if(['pending','defer'].includes(issue.decision)){
@@ -192,7 +248,7 @@ function renderReviewPanel(job) {
     const subject=issues.find(issue=>issue.subject)?.subject;
     if(subject){const context=element('details','review-context');context.append(element('summary','','完整主体字段'),element('pre','review-source',subject));group.append(context);}
     const editor=element('details','review-editor');editor.append(element('summary','','人工填写最终完整字段'));
-    editor.append(element('p','partial-note','修改整段字段正文，保留所需信息。保存时确认本字段所有剩余疑点；已标为误报或保留的结论继续保留。'));
+    editor.append(element('p','partial-note','修改整段字段正文，保留所需信息。保存后逐项复核原疑点；仍需核对的项目会单独提示。已标为误报或保留的结论继续保留。'));
     editor.append(element('pre','review-source',field.original));
     const area=document.createElement('textarea');area.setAttribute('aria-label',`题目 ${field.sample_id} ${field.name} 的人工最终稿`);
     area.value=view.drafts.get(field.field_id)??resolution.editor_text;
@@ -204,11 +260,11 @@ function renderReviewPanel(job) {
       save.textContent=saved?'✓ 最终稿已保存':view.busy&&view.saving?.field_id===field.field_id?'正在保存…':'确认本字段最终稿';
       save.disabled=view.busy||!field.sample_id||saved;
     };
-    area.oninput=()=>{view.drafts.set(field.field_id,area.value);updateSave();};updateSave();
+    area.oninput=()=>{view.drafts.set(field.field_id,area.value);updateSave();refreshDraftNotice(job,panel,apply,draftNotice);};updateSave();
     save.onclick=()=>reviewRequest(job,'',{revision:documentData.revision,field_id:field.field_id,final_text:area.value});editor.append(save);
     if(Object.hasOwn(documentData.field_edits,field.field_id)){
       const reset=element('button','secondary-button','撤销本字段人工稿');reset.disabled=view.busy;
-      reset.onclick=()=>{view.drafts.delete(field.field_id);reviewRequest(job,'',{revision:documentData.revision,field_id:field.field_id,reset:true});};editor.append(reset);
+      reset.onclick=()=>reviewRequest(job,'',{revision:documentData.revision,field_id:field.field_id,reset:true});editor.append(reset);
     }
     group.append(editor);panel.append(group);
   }
@@ -216,7 +272,7 @@ function renderReviewPanel(job) {
     const output=job.review_output;
     const automatic=output.export_kind==='automatic'||(!output.export_kind&&output.corrected_path.includes('_自动修正_'));
     const current=!automatic&&output.review_revision===documentData.revision&&(!output.plan_fingerprint||output.plan_fingerprint===projection.fingerprint);
-    panel.append(element('strong','',automatic?'自动修正副本（尚未人工审核）':current?'当前审核后版本已导出':'上次审核后版本：尚未包含最新审核，请重新导出'));
+    const outputStatus=element('strong','',automatic?'自动修正副本（尚未人工审核）':current?'当前审核后版本已导出':'上次审核后版本：尚未包含最新审核，请重新导出');outputStatus.dataset.exportStatus='true';outputStatus.dataset.savedExportStatus=outputStatus.textContent;panel.append(outputStatus);
     panel.append(element('p','partial-note',`${output.changed_captions} 条 Caption、${output.changed_fields} 个字段有修改；${output.remaining_review_items} 项待处理。${!output.changed_captions?'没有文字改动，主文件按原文完整导出。':''}`));
     panel.append(element('code','review-path',output.corrected_path));
     const primary=element('button','secondary-button',automatic?'查看自动修正副本（未审核）':'查看审核后版本');
@@ -234,5 +290,6 @@ function renderReviewPanel(job) {
     attachments.append(element('p','partial-note',`按审核选择标黄 ${output.highlighted_captions||0} 条；复检仅使用本地规则，不表示语义全部合格。`),links);
     panel.append(attachments);
   }
+  refreshDraftNotice(job,panel,apply,draftNotice);
   return panel;
 }

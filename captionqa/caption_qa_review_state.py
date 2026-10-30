@@ -50,8 +50,8 @@ def decide(document, *, revision, issue_id=None, decision=None, field_id=None, f
         if issue_id not in issues or decision not in DECISIONS - {"manual", "auto"}:
             raise ValueError("错误项或审核结论无效。")
         issue = issues[issue_id]
-        if issue["field_id"] in result["field_edits"]:
-            raise ValueError("此字段已有人工定稿，请先撤销定稿再调整单项结论。")
+        if issue["field_id"] in result["field_edits"] and decision == 'approve':
+            raise ValueError("此字段已有人工定稿，请先撤销定稿再应用候选；保留或误报结论不会改动人工稿。")
         if decision == "approve" and (not issue["sample_id"] or not issue["operations"]):
             raise ValueError("此项没有可安全执行的指定改法，或缺少真实题目 ID；请人工填写完整字段。")
         if decision=='keep_highlight' and (not issue['sample_id'] or issue_id in automatic_issue_ids(result)):

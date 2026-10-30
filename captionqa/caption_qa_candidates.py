@@ -274,7 +274,7 @@ def _rewrite_operations(issue,original):
     return result
 
 
-def candidate_operations(issue,original):
+def raw_candidate_operations(issue,original):
     # Preserve saved narrow candidates exactly, so existing approvals remain
     # verifiable when the human-confirmation scope expands.
     from captionqa.caption_qa_suggestions import operations
@@ -283,12 +283,17 @@ def candidate_operations(issue,original):
     return _restricted_operations(issue,original) or _rewrite_operations(issue,original) or operations(issue,original)
 
 
+def candidate_operations(issue,original):
+    from captionqa.caption_qa_candidate_context import contextual_operations
+    return contextual_operations(original,raw_candidate_operations(issue,original))
+
+
 def enrich_candidates(document):
     """Fill empty proposals without changing any existing human decision."""
     fields={field['field_id']:field for field in document['fields']}
     count=0
     for issue in document['issues']:
-        if issue.get('operations') or issue.get('origin')!='llm' or issue['decision'] not in {'pending','defer'}:
+        if issue.get('operations') or issue.get('candidate_satisfied') or issue.get('origin')!='llm' or issue['decision'] not in {'pending','defer'}:
             continue
         if issue['field_id'] in document.get('field_edits',{}):
             continue
@@ -298,6 +303,9 @@ def enrich_candidates(document):
             issue['operations']=operations
             issue['requires_confirmation']=True
             issue['candidate_policy']=operations[0]['candidate_policy']
+            count+=1
+        elif raw_candidate_operations(issue,field['original']):
+            issue['candidate_satisfied']=True
             count+=1
     return count
 

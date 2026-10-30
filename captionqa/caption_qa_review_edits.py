@@ -13,6 +13,8 @@ def resolve_field(document, field, issues):
         mode = "human"
     else:
         selected = [i for i in issues if i['decision'] in {'approve', 'auto'}]
+        from captionqa.caption_qa_candidate_context import normalized_candidate
+        selected = [normalized_candidate(i,old) for i in selected]
         from captionqa.caption_qa_candidates import valid_candidate, candidate_operations, PUNCTUATION_POLICY, EXPLICIT_PUNCTUATION_POLICY, REWRITE_POLICY
         from captionqa.caption_qa_suggestions import POLICY as SUGGESTION_POLICY
         for issue in selected:
@@ -36,6 +38,8 @@ def resolve_field(document, field, issues):
         for left, right in zip(operations, operations[1:]):
             if right["start"] < left["end"] or right["start"] == left["start"]:
                 raise ValueError("同一字段的已确认修改存在冲突，请人工统一定稿。")
+        from captionqa.caption_qa_candidate_context import contextual_operations
+        operations = contextual_operations(old,operations)
         new = old
         from captionqa.caption_qa_width import normalize, valid_operation
         audio_text=normalize(field['name'],old,exempt=field['name'] in qa.PUNCTUATION_EXEMPT_SECTIONS) if document['workflow_version']==AUTO_WORKFLOW else old
