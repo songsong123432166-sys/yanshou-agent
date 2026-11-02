@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from typing import TypedDict
 from caption_qa_symbols import LITERAL_RE, mask_literals, symbol_findings
 
+def separator_operations(field,text):return []
+
 SUBJECT_RE = re.compile(r"<主体\d+>")
 
 BARE_RE = re.compile(r"(?<![<a-zA-Z0-9])(主体|视频|图片|音频|场景)\s*\d+(?![\d>])")
@@ -109,6 +111,10 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
         errors.append(_issue("static", "主体", "、".join(coverage["defined_subjects"]),
                              "skipped_numbering", "主体编号不连续（应从 1 开始）；请人工核对编号映射"))
     for name, value in sections.items():
+        from _time_layout import operations as time_layout_operations
+        for op in time_layout_operations(name,value):
+            errors.append(_issue('static',name,op['heading'],'time_range_break',
+                '新时间段另起一段，段间空一行；段内第几秒不强制换段。',True))
         if name in MULTI_LABEL_SECTIONS:
             label_lines = [line.strip() for line in value.splitlines() if line.strip()]
             embedded_header = re.search(r"(?m)^[ \t]*#{2,6}[ \t]*\S", value)
@@ -116,8 +122,9 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
                 empty_label = re.search(r"^[|｜]|[|｜]$|[|｜][ \t]*[|｜]", value.strip())
                 message = ("多标签列表存在空标签：请检查首尾多余竖线或连续竖线，不自动改写标签" if empty_label else
                            "多个标签应使用 | 或 ｜ 拼接，不用顿号、逗号、分号或换行；实体/IP、镜头/运镜内部的 / 保留，请人工核对")
-                errors.append(_issue("static", name, value.strip(), "label_separator",
-                    message, False))
+                safe=bool(separator_operations(name,value))
+                if safe:message='标签完整，仅将分隔符规范为竖线；标签内容与顺序保留。'
+                errors.append(_issue("static", name, value.strip(), "label_separator",message,safe))
         if name in LLM_TARGET_SECTIONS:
             view = mask_literals(value)
             for snippet, message in symbol_findings(value):

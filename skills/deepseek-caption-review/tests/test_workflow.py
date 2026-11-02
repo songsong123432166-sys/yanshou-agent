@@ -30,6 +30,22 @@ def suggestion(report,original,replacement,label='疑似病句',field='自然指
 
 
 class LocalTests(unittest.TestCase):
+    def test_time_ranges_form_paragraphs_without_splitting_point_events_or_speech(self):
+        text='0-2秒，<主体1>说道{2-8秒，继续}。第1秒，转头。2-8秒，<主体1>停下。第4秒，微笑。'
+        raw=caption(text);report=app.check(raw)
+        expected=raw.replace('。2-8秒','。\n\n2-8秒')
+        self.assertEqual(report['caption'],expected)
+        self.assertEqual(app.check(expected)['caption'],expected)
+        self.assertTrue(report['automatic_changes'])
+        self.assertFalse(report['findings'])
+        self.assertEqual(app.check(raw,check_only=True)['caption'],raw)
+
+    def test_new_time_paragraph_has_terminal_punctuation_without_a_second_fix(self):
+        raw=caption('0-2秒，<主体1>奔跑 2-8秒，<主体1>停下。')
+        fixed=app.check(raw)['caption']
+        self.assertIn('奔跑。\n\n2-8秒',fixed)
+        self.assertEqual(app.check(fixed)['caption'],fixed)
+
     def test_field_spacing_is_safe_and_check_only_keeps_original(self):
         expected=caption('<主体1>说{hello\n## subject\nworld}。\n\n随后转身。')
         raw=expected.replace('\n\n## ', '\n## ').rstrip('\n')

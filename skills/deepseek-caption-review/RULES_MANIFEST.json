@@ -1,35 +1,48 @@
 {
-  "skill_version": "1.0.0",
-  "field_schema_version": 6,
+  "skill_version": "1.1.0",
+  "time_layout_policy": "time-range-paragraph-v1",
+  "field_schema_version": 8,
   "auto_fix_policy_version": 9,
   "scope": "One structured Caption; no network calls, tables, keys or source overwrite.",
   "shared_sources": [
     {
-      "source": "caption_field_schema.py",
-      "source_sha256": "a5b96d4bc109a05a8d3164d88ab50be8d3ac999409cb8dd6adbf9add0ffb6927",
+      "source": "captionqa/caption_field_schema.py",
+      "source_sha256": "60937841c8caf5092b1ea846a709dbae8d7342c1440078df00d49a8afb2c293c",
       "bundled": "scripts/_schema.py",
-      "bundled_sha256": "12d0903df0620132a173149fef23ca76c940fc13255f6e8c958080e1fa215b0e"
+      "bundled_sha256": "c5108344ac62a3fc035d783f865c21d3ee17cdbd5cf8ff519d26e0a42c8cb4c5"
     },
     {
-      "source": "caption_qa_agent.py",
-      "source_sha256": "48d787379b1233963b45860106dfbe3af6050358f83f2d16459c1b498c561dd4",
+      "source": "captionqa/caption_qa_agent.py",
+      "source_sha256": "ccd5e53da2d38c0fb29a9b66110ca62d4aa0549c99e73996b8160614c9955b2d",
       "bundled": "scripts/_rules.py",
-      "bundled_sha256": "150f0791a451016d6d1c9883c41b098f754702057514da563c757989ba119dee"
+      "bundled_sha256": "277cd24d0444bfb37ef9b2142ff5b7d50dc3a1913f949692545fc708c7e03180"
     },
     {
-      "source": "caption_qa_review.py",
-      "source_sha256": "cecc175681957c09aa271fc46642b3353d7e8288e3e097c377dd48830b03f34d",
+      "source": "captionqa/caption_qa_review_audio.py",
+      "source_sha256": "ef0cfd8b6240ea8ed29151af8e1c77fe6838b02ae4a9fc251680b74fef951921",
       "bundled": "scripts/_audio.py",
-      "bundled_sha256": "ff3b97c1b610e79ddf46c5f138c41d9bde5b1fe8299463c36b9b70aca0290426"
+      "bundled_sha256": "dd354d07d66840f061ff108c55741e96731e1b0052c80044ff4d876f6b366c07"
     },
     {
-      "source": "caption_qa_width.py",
+      "source": "captionqa/caption_qa_width.py",
+      "source_sha256": "ff260a15fc2235e8a09d91072b36be2c86f91acf5ca220b5c82e5b7704099bfd",
+      "bundled": "scripts/_width_literals.py",
+      "bundled_sha256": "6b32db5c042f944ba72cd8970f02de444eaffa5c84fcfdabe5dd122e8d399ef8"
+    },
+    {
+      "source": "captionqa/caption_qa_time_layout.py",
+      "source_sha256": "9f0317c93461fcfb18ca35f855b7f6cd80b8610fd4617222d805aa346078f851",
+      "bundled": "scripts/_time_layout.py",
+      "bundled_sha256": "e34951d4a7e28102ad2a4a92a0747ee7ad00ca03a03c482d50c3a3feaafd9076"
+    },
+    {
+      "source": "captionqa/caption_qa_width.py",
       "source_sha256": "ff260a15fc2235e8a09d91072b36be2c86f91acf5ca220b5c82e5b7704099bfd",
       "bundled": "scripts/caption_qa_width.py",
       "bundled_sha256": "ff260a15fc2235e8a09d91072b36be2c86f91acf5ca220b5c82e5b7704099bfd"
     },
     {
-      "source": "caption_qa_symbols.py",
+      "source": "captionqa/caption_qa_symbols.py",
       "source_sha256": "6175fca3c756dcff1e770e3757c8934d11808d168374a379e3dbe4320f253db3",
       "bundled": "scripts/caption_qa_symbols.py",
       "bundled_sha256": "6175fca3c756dcff1e770e3757c8934d11808d168374a379e3dbe4320f253db3"

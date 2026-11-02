@@ -29,6 +29,29 @@ class CaptionFixSkillTests(unittest.TestCase):
         self.source = self.root / 'business.jsonl'
         self.output = self.root / 'out'
 
+    def test_time_ranges_form_paragraphs_and_protected_point_text_stays_intact(self):
+        instruction='0-2秒，<主体1>说道{2-8秒，继续}。第1秒，转头。2-8秒，<主体1>停下。第4秒，微笑。'
+        raw=GOOD.replace('0-4秒，第0秒，<主体1>向前跑。',instruction)
+        self.source.write_text(json.dumps({'id':'0001','caption':raw,'note':raw})+'\n')
+        paths,_=self.finish(self.run_supported('--column','caption','--id-column','id'))
+        row=json.loads(Path(paths['output']).read_text())
+        self.assertEqual(row['caption'],raw.replace('。2-8秒','。\n\n2-8秒'))
+        self.assertEqual(row['note'],raw)
+
+    def test_newly_split_paragraph_gets_existing_terminal_punctuation_in_one_pass(self):
+        instruction='0-2秒，<主体1>奔跑 2-8秒，<主体1>停下。'
+        raw=GOOD.replace('0-4秒，第0秒，<主体1>向前跑。',instruction)
+        self.source.write_text(json.dumps({'id':'0001','caption':raw})+'\n')
+        paths,_=self.finish(self.run_supported('--column','caption','--id-column','id'))
+        row=json.loads(Path(paths['output']).read_text())
+        self.assertIn('奔跑。\n\n2-8秒',row['caption'])
+
+    def test_skill_update_does_not_automatically_change_metadata_separators(self):
+        raw=GOOD+'## audio_similarity_tag\n音色-相同，环境音-相同\n'
+        self.source.write_text(json.dumps({'id':'0001','caption':raw})+'\n')
+        paths,_=self.finish(self.run_supported('--column','caption','--id-column','id'))
+        self.assertIn('音色-相同，环境音-相同',json.loads(Path(paths['output']).read_text())['caption'])
+
     def run_supported(self, *args, source=None):
         # No third-party site packages, project cwd, API keys or PYTHONPATH.
         source = source or self.source

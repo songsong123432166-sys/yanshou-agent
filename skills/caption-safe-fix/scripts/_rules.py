@@ -5,11 +5,18 @@ from collections import Counter, OrderedDict
 from collections.abc import Mapping, Sequence
 from typing import Any, TypedDict
 from caption_qa_symbols import CONTENT_SYMBOLS, LITERAL_RE, SYMBOL_DELIMITERS, mask_literals, symbol_findings
+from _time_layout import normalize as normalize_time_layout
+from _schema import ALIASES as FIELD_ALIASES, is_generation_request, preferred_header_indices
 
-SECTION_ALIASES = {"自然指令（细节）": "自然指令", "自然指令(细节)": "自然指令"}
+# This Skill keeps label separators in the human-review scope.
+def separator_operations(field,text):return []
+def normalize_separators(field,text):return text
+
+SECTION_ALIASES = {alias: name for alias, name in FIELD_ALIASES.items()
+                   if name not in {"_task", "_subtask"} and alias != name}
 
 PLAIN_SECTION_NAMES = ("任务类型", "提示", "输入描述", "基调", "场景", "主体", "总结", "自然指令",
-                       "自然指令（细节）", "自然指令(细节)", "画面元素", "similarity_label",
+                       *SECTION_ALIASES, "画面元素", "similarity_label",
                        "video_similarity_tag", "audio_similarity_tag", "task_type", "subtask_type", "similarity_tag", "视听标签")
 
 _PLAIN_HEADER_PATTERN = "|".join(re.escape(name) for name in sorted(PLAIN_SECTION_NAMES, key=len, reverse=True))
@@ -67,9 +74,12 @@ def is_human_caption(text: Any) -> bool:
     anchors = headers & ANCHOR_HEADERS
     return len(anchors) >= 3 and bool(anchors & {"主体", "自然指令"})
 
-def _section_name(match):
-    name = (match.group("markdown_name") or match.group("plain_name")
+def _raw_section_name(match):
+    return (match.group("markdown_name") or match.group("plain_name")
             or match.group("inline_name") or match.group("empty_name")).strip()
+
+def _section_name(match):
+    name = _raw_section_name(match)
     return SECTION_ALIASES.get(name, name)
 
 def _caption_headers(text):
@@ -81,7 +91,24 @@ def _caption_headers(text):
         if headers and headers[-1][0] == name and not text[headers[-1][2]:start].strip():
             _, start, _ = headers.pop()
         headers.append((name, start, match.end()))
-    return headers
+    # Old exports sometimes put a generation prompt under subtask_type. Keep
+    # its original title/spans, but check its body as prose rather than labels.
+    resolved=[]
+    for index,(name,start,body) in enumerate(headers):
+        end=headers[index+1][1] if index+1<len(headers) else len(text)
+        if name=='subtask_type' and is_generation_request(text[body:end]):
+            name='提示'
+        resolved.append((name,start,body))
+    return resolved
+
+def _preferred_caption_headers(caption,headers):
+    entries=[{'field':name,'alias':_raw_section_name(SECTION_RE.match(caption,start)),
+              'start':start,'end':body} for name,start,body in headers]
+    return preferred_header_indices(caption,entries)
+
+class CaptionSections(OrderedDict):
+    """Active fields with informational source-version notes."""
+    field_resolution_notes=()
 
 def parse_caption_sections(caption: str) -> dict[str, str]:
     """按指定正则解析，保留内容空白及字段顺序；重复标题拒绝静默覆盖。
@@ -93,8 +120,10 @@ def parse_caption_sections(caption: str) -> dict[str, str]:
     matches = _caption_headers(caption)
     if not matches or (caption[:matches[0][1]].strip() and not is_human_caption(caption)):
         raise ValueError("Caption 未能解析为支持的分段标题及正文；未完成内容检查")
-    sections: dict[str, str] = OrderedDict()
+    selected,notes=_preferred_caption_headers(caption,matches)
+    sections=CaptionSections();sections.field_resolution_notes=notes
     for index, (name, start, body_start) in enumerate(matches):
+        if index not in selected:continue
         if not name or name in sections:
             raise ValueError(f"字段名为空或重复：{name!r}")
         end = matches[index + 1][1] if index + 1 < len(matches) else len(caption)
@@ -109,10 +138,12 @@ def rebuild_caption(original: str, sections: Mapping[str, str]) -> str:
     matches = _caption_headers(original)
     if not matches:
         return original
+    selected,_=_preferred_caption_headers(original,matches)
     result = [original[:matches[0][1]]]
     for index, (name, start, body_start) in enumerate(matches):
         end = matches[index + 1][1] if index + 1 < len(matches) else len(original)
-        result.extend((original[start:body_start], sections.get(name, original[body_start:end])))
+        body=sections.get(name,original[body_start:end]) if index in selected else original[body_start:end]
+        result.extend((original[start:body_start],body))
     return "".join(result)
 
 def _normalize_tags(text: str) -> str:
@@ -175,6 +206,10 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
         errors.append(_issue("static", "主体", "、".join(coverage["defined_subjects"]),
                              "skipped_numbering", "主体编号不连续（应从 1 开始）；请人工核对编号映射"))
     for name, value in sections.items():
+        from _time_layout import operations as time_layout_operations
+        for op in time_layout_operations(name,value):
+            errors.append(_issue('static',name,op['heading'],'time_range_break',
+                '新时间段另起一段，段间空一行；段内第几秒不强制换段。',True))
         if name in MULTI_LABEL_SECTIONS:
             label_lines = [line.strip() for line in value.splitlines() if line.strip()]
             embedded_header = re.search(r"(?m)^[ \t]*#{2,6}[ \t]*\S", value)
@@ -182,8 +217,9 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
                 empty_label = re.search(r"^[|｜]|[|｜]$|[|｜][ \t]*[|｜]", value.strip())
                 message = ("多标签列表存在空标签：请检查首尾多余竖线或连续竖线，不自动改写标签" if empty_label else
                            "多个标签应使用 | 或 ｜ 拼接，不用顿号、逗号、分号或换行；实体/IP、镜头/运镜内部的 / 保留，请人工核对")
-                errors.append(_issue("static", name, value.strip(), "label_separator",
-                    message, False))
+                safe=bool(separator_operations(name,value))
+                if safe:message='标签完整，仅将分隔符规范为竖线；标签内容与顺序保留。'
+                errors.append(_issue("static", name, value.strip(), "label_separator",message,safe))
         if name in LLM_TARGET_SECTIONS:
             view = mask_literals(value)
             for snippet, message in symbol_findings(value):
@@ -212,9 +248,11 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
     return errors
 
 def apply_static_fixes(sections: Mapping[str, str]) -> dict[str, str]:
-    """确定性修复：裸标签、缺失句末标点；重复前缀保持原样。"""
+    """确定性修复：完整标签间的分隔符、裸标签和缺失句末标点。"""
     fixed: dict[str, str] = OrderedDict()
     for name, value in sections.items():
+        value=normalize_separators(name,value)
+        value=normalize_time_layout(name,value)
         if name in LLM_TARGET_SECTIONS:
             value = _normalize_tags(value)
         if name not in PUNCTUATION_EXEMPT_SECTIONS:
@@ -233,5 +271,5 @@ def apply_static_fixes(sections: Mapping[str, str]) -> dict[str, str]:
                 lines.append(line)
                 offset += original_length
             value = "".join(lines)
-        fixed[name] = value
+        fixed[name] = normalize_time_layout(name,value)
     return fixed

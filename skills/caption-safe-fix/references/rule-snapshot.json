@@ -1,11 +1,36 @@
 {
   "policy_version": 9,
+  "skill_version": "1.1.0",
+  "time_layout_policy": "time-range-paragraph-v1",
   "auto_fix": [
     "existing_numbered_tag_format",
-    "paragraph_terminal_punctuation"
+    "paragraph_terminal_punctuation",
+    "time_range_paragraphs"
+  ],
+  "support": [
+    {
+      "source": "captionqa/caption_qa_review_audio.py",
+      "source_sha256": "ef0cfd8b6240ea8ed29151af8e1c77fe6838b02ae4a9fc251680b74fef951921",
+      "bundled": "scripts/_audio.py",
+      "bundled_sha256": "dd354d07d66840f061ff108c55741e96731e1b0052c80044ff4d876f6b366c07"
+    },
+    {
+      "source": "captionqa/caption_qa_width.py",
+      "source_sha256": "ff260a15fc2235e8a09d91072b36be2c86f91acf5ca220b5c82e5b7704099bfd",
+      "bundled": "scripts/_width_literals.py",
+      "bundled_sha256": "6b32db5c042f944ba72cd8970f02de444eaffa5c84fcfdabe5dd122e8d399ef8"
+    },
+    {
+      "source": "captionqa/caption_qa_time_layout.py",
+      "source_sha256": "9f0317c93461fcfb18ca35f855b7f6cd80b8610fd4617222d805aa346078f851",
+      "bundled": "scripts/_time_layout.py",
+      "bundled_sha256": "e34951d4a7e28102ad2a4a92a0747ee7ad00ca03a03c482d50c3a3feaafd9076"
+    }
   ],
   "source_sha256": {
-    "caption_qa_agent.py": "fd2cc45ea801884595803fee32a696684b7a727fb17cd7257d993bede8eb3e23",
-    "caption_qa_symbols.py": "6175fca3c756dcff1e770e3757c8934d11808d168374a379e3dbe4320f253db3"
+    "captionqa/caption_qa_agent.py": "ccd5e53da2d38c0fb29a9b66110ca62d4aa0549c99e73996b8160614c9955b2d",
+    "captionqa/caption_qa_symbols.py": "6175fca3c756dcff1e770e3757c8934d11808d168374a379e3dbe4320f253db3",
+    "captionqa/caption_field_schema.py": "60937841c8caf5092b1ea846a709dbae8d7342c1440078df00d49a8afb2c293c",
+    "captionqa/caption_qa_time_layout.py": "9f0317c93461fcfb18ca35f855b7f6cd80b8610fd4617222d805aa346078f851"
   }
 }

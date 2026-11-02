@@ -1,7 +1,7 @@
 """Shared field schema snapshot. No model client or network operations."""
 import re
 
-VERSION=6
+VERSION=8
 
 HEADER_PREFIX='## '
 

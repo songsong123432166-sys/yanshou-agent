@@ -1,5 +1,6 @@
-"""Shared audio protection spans."""
+"""Portable offline rule support; no application or API imports."""
 import re
+
 
 def audio_spans(text):
     """Only interior edits are protected: outer paragraph periods remain valid."""

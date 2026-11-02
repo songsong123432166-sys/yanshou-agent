@@ -14,15 +14,16 @@ from uuid import uuid4
 
 import _schema as schema
 import _rules as rules
+from _time_layout import normalize as normalize_time_layout
 from _audio import audio_spans
 import caption_qa_width as width
 
-VERSION='1.0.0'
+VERSION='1.1.0'
 SEMANTIC_LABELS={'疑似病句','疑似错别字','标点问题','主体引用','内容符号'}
 LABELS={'duplicate_defined_subjects':'主体重复定义','missing_subjects':'自然指令漏写已定义主体',
         'ghost_subjects':'引用未定义主体','skipped_numbering':'主体编号不连续',
         'symbol_format':'内容符号不成对','label_separator':'多标签拼接符不规范',
-        'bare_tags':'编号标签待核对','missing_punctuation':'段尾标点待核对'}
+        'time_range_break':'时间段分段','bare_tags':'编号标签待核对','missing_punctuation':'段尾标点待核对'}
 
 
 def digest(text):return hashlib.sha256(text.encode('utf-8')).hexdigest()
@@ -91,7 +92,7 @@ def safe_body(name,text):
     def typos(value):
         for old,new in rules.UNAMBIGUOUS_TYPO_FIXES.items():value=value.replace(old,new)
         return value
-    text=outside_transform(text,typos)
+    text=normalize_time_layout(name,outside_transform(text,typos))
     spans=protected(text);lines=[];offset=0
     for line in text.splitlines(keepends=True):
         original_length=len(line)
@@ -102,7 +103,7 @@ def safe_body(name,text):
         if trimmed.strip() and trimmed[-1] not in rules.SENTENCE_ENDINGS and not inside and not unclosed:
             line=trimmed+'。'+line[len(trimmed):]
         lines.append(line);offset+=original_length
-    return ''.join(lines)
+    return normalize_time_layout(name,''.join(lines))
 
 
 def excerpt(text,snippet):
