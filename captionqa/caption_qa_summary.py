@@ -15,6 +15,7 @@ CHECKS = (
     ("numbering", "主体编号断层", False),
 )
 ISSUE_CHECK = {
+    'time_range_break':'time_layout',
     "missing_punctuation": "punctuation", "标点符号硬伤": "punctuation",
     "bare_tags": "bare_tags", "裸标签漏写 <>": "bare_tags",
     "symbol_format": "symbols", "symbol_width": "symbols", "label_separator": "symbols", "内容符号不规范": "semantic_symbols",
@@ -61,6 +62,7 @@ def aggregate_check_states(states):
             affected[key] += 1
             review[key] += bool(unresolved)
     definitions = list(CHECKS)
+    if affected['time_layout']:definitions.append(('time_layout','时间段分段',False))
     for key, label in (("legacy", "旧版混合类型"), ("other", "其他内容问题"),
                        ("semantic_symbols", "疑似内容符号用错")):
         if affected[key]:

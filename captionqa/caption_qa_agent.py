@@ -463,6 +463,10 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
         errors.append(_issue("static", "主体", "、".join(coverage["defined_subjects"]),
                              "skipped_numbering", "主体编号不连续（应从 1 开始）；请人工核对编号映射"))
     for name, value in sections.items():
+        from captionqa.caption_qa_time_layout import operations as time_layout_operations
+        for op in time_layout_operations(name,value):
+            errors.append(_issue('static',name,op['heading'],'time_range_break',
+                '新时间段另起一段，段间空一行；段内第几秒不强制换段。',True))
         if name in MULTI_LABEL_SECTIONS:
             label_lines = [line.strip() for line in value.splitlines() if line.strip()]
             embedded_header = re.search(r"(?m)^[ \t]*#{2,6}[ \t]*\S", value)
@@ -524,7 +528,8 @@ def apply_static_fixes(sections: Mapping[str, str]) -> dict[str, str]:
                 lines.append(line)
                 offset += original_length
             value = "".join(lines)
-        fixed[name] = value
+        from captionqa.caption_qa_time_layout import normalize as normalize_time_layout
+        fixed[name] = normalize_time_layout(name,value)
     return fixed
 
 

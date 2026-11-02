@@ -71,7 +71,9 @@ class ReviewStore:
             added = enrich_candidates(document)
             from captionqa.caption_qa_labels import enrich_separator_fixes, POLICY as SEPARATOR_POLICY
             separators = enrich_separator_fixes(document)
-            if added or separators or contextual:
+            from captionqa.caption_qa_time_layout import enrich_time_layout, POLICY as TIME_POLICY
+            layout=enrich_time_layout(document,source_records(document,self.input_source))
+            if added or separators or contextual or layout:
                 document['revision'] += 1
                 if contextual:
                     document['events'].append({'revision':document['revision'],
@@ -85,6 +87,10 @@ class ReviewStore:
                     issue=next(i for i in document['issues'] if i['issue_id']==issue_id)
                     document['events'].append({'revision':document['revision'],'decision':issue['decision'],
                                               'issue_id':issue_id,'policy':SEPARATOR_POLICY})
+                for issue_id in layout:
+                    issue=next(i for i in document['issues'] if i['issue_id']==issue_id)
+                    document['events'].append({'revision':document['revision'],'decision':issue['decision'],
+                                              'issue_id':issue_id,'policy':TIME_POLICY})
                 self.save(document)
         else:
             from captionqa.caption_qa_id_list import detect_id_column

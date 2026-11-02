@@ -18,7 +18,7 @@ from captionqa.caption_qa_review_state import automatic_issue_ids, human_review_
 from captionqa.caption_qa_review_edits import approved_changes
 from captionqa.caption_qa_review_store import atomic_json, validate_binding
 
-LABELS = {"missing_punctuation": "缺少段尾标点", "bare_tags": "编号标签格式",
+LABELS = {"time_range_break":"时间段分段", "missing_punctuation": "缺少段尾标点", "bare_tags": "编号标签格式",
           "missing_subjects": "自然指令漏写已定义主体", "ghost_subjects": "引用未定义主体",
           "duplicate_defined_subjects": "主体重复定义", "skipped_numbering": "主体编号不连续",
           "symbol_format": "内容符号不成对", "label_separator": "多标签拼接符不规范",
@@ -257,6 +257,10 @@ def _review_records(latest, *, caption_column, id_column, source_sha256):
             snippet, kind = item.get("original_snippet", ""), item.get("issue_type", "")
             locations = (_locations(sections[name], normalized.get(name,""), snippet)
                          or _locations(sections[name], cleaned.get(name, ""), snippet))
+            if kind=='time_range_break' and item.get('source')=='static':
+                from captionqa.caption_qa_time_layout import operations as time_layout_operations
+                locations=[(op['end'],op['end']+len(op['heading']))
+                           for op in time_layout_operations(name,sections[name]) if op['heading']==snippet]
             key = (name, kind, snippet)
             if item.get("source") == "static" and len(locations) > 1:
                 locations = [locations[min(occurrence[key], len(locations) - 1)]]
@@ -275,6 +279,10 @@ def _review_records(latest, *, caption_column, id_column, source_sha256):
                      "reason": item.get("suggestion", ""), "decision": "pending", "operations": [],
                      "locations": locations, "can_auto_fix": bool(item.get("can_auto_fix")), "origin": item.get("source"),
                      "source_issue_index": next((n for n, original in enumerate(report.get('issues', [])) if original is item), None)}
+            if kind=='time_range_break' and item.get('source')=='static':
+                from captionqa.caption_qa_time_layout import operations as time_layout_operations
+                issue['operations']=[op for op in time_layout_operations(name,sections[name])
+                                     if any(op['end']==a for a,b in locations)]
             if isinstance(item.get('replacement'),str):
                 issue['replacement']=item['replacement']
             if width_enabled and kind=='symbol_width' and item.get('source')=='static' and item.get('width_operations'):
@@ -346,6 +354,8 @@ def _review_records(latest, *, caption_column, id_column, source_sha256):
                     issue['operations'] = []
         document["issues"].extend(row_issues)
         document["fields"].extend(field for field in field_map.values() if field["issue_ids"])
+    from captionqa.caption_qa_time_layout import enrich_time_layout
+    enrich_time_layout(document,latest)
     from captionqa.caption_qa_candidates import enrich_candidates
     enrich_candidates(document)
     from captionqa.caption_qa_labels import enrich_separator_fixes
@@ -362,10 +372,11 @@ def _approve_automatic(document):
             issue['decision'] = 'auto'
     for field in document['fields']:
         selected = [i for i in document['issues'] if i['field_id'] == field['field_id'] and i['decision'] == 'auto']
-        operations = sorted({(o['start'], o['end'], o['old'], o['new']) for i in selected for o in i['operations']})
+        operations = sorted({(o['start'], o['end'], o['old'], o['new']) for i in selected
+                             if i['kind']!='time_range_break' for o in i['operations']})
         if any(right[0] < left[1] or right[0] == left[0] for left, right in zip(operations, operations[1:])):
             for issue in selected:
-                issue['decision'] = 'pending'
+                if issue['kind']!='time_range_break':issue['decision'] = 'pending'
     for issue in document['issues']:
         if issue['decision'] == 'auto':
             document['events'].append({'revision': 0, 'issue_id': issue['issue_id'], 'decision': 'auto',
