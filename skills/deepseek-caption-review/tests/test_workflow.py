@@ -46,6 +46,45 @@ class LocalTests(unittest.TestCase):
         self.assertIn('奔跑。\n\n2-8秒',fixed)
         self.assertEqual(app.check(fixed)['caption'],fixed)
 
+    def test_basic_punctuation_outer_wrappers_and_definition_colon(self):
+        raw=caption('0-3秒，＜ 主体1 ＞说道｛Hello, world!｝,(背景音乐是歌曲《You(=I)》,钢琴轻快)＜传来脚步声,持续响起＞')
+        raw=raw.replace('<主体1>：<图片1>中的男子，身穿白色衬衫。','<主体1>:<图片1>中的男子,身穿白色衬衫.')
+        fixed=app.check(raw)['caption']
+        self.assertIn('<主体1>：<图片1>中的男子，身穿白色衬衫。',fixed)
+        self.assertIn('<主体1>说道{Hello, world!}，（背景音乐是歌曲《You(=I)》,钢琴轻快）<传来脚步声,持续响起>。',fixed)
+        self.assertEqual(app.check(fixed)['caption'],fixed)
+
+    def test_prose_endings_are_not_duplicated_and_technical_literals_survive(self):
+        text='<主体1>记录3.14，访问https://example.test/a，时间12:30。\nHello.\n<主体1>停下，'
+        report=app.check(caption(text))
+        self.assertIn(text,report['caption']);self.assertNotIn('，。',report['caption'])
+        self.assertNotIn('Hello.。',report['caption'])
+        self.assertFalse(any(i.get('original')=='Hello.' for i in report['findings']))
+
+    def test_recognized_metadata_separators_are_safe_but_prose_and_empty_labels_are_not(self):
+        raw=caption().replace('实体-相同|场景-相同','实体/IP-相同，镜头/运镜-相同')
+        fixed=app.check(raw)['caption'];self.assertIn('实体/IP-相同｜镜头/运镜-相同',fixed)
+        for value in ['音色-相同，环境中传来风声','音色-相同||音乐-相同']:
+            raw=caption().replace('## audio_similarity_tag\n无','## audio_similarity_tag\n'+value)
+            report=app.check(raw)
+            self.assertIn(value,report['caption']);self.assertTrue(report['findings'])
+
+    def test_voice_definition_colon_is_formatting_while_description_words_stay_protected(self):
+        raw=caption().replace('<主体1>：<图片1>中的男子，身穿白色衬衫。','＜主体1＞:画外青年男声,音色清朗.')
+        fixed=app.check(raw)['caption']
+        self.assertIn('<主体1>：画外青年男声,音色清朗.',fixed)
+
+    def test_recommended_outer_period_already_in_context_is_not_inserted_twice(self):
+        report=app.check(caption('<主体1>说道{你好}。'))
+        data=suggestion(report,'{你好}','{你好}。',label='标点问题')
+        plan=app.propose(report,data)
+        issue=next(i for i in plan['findings'] if i.get('source')=='semantic')
+        self.assertEqual(issue['replacement'],'{你好}')
+        self.assertIn('无需重复插入',issue['reason'])
+        result=app.apply(plan,[issue['issue_id']],'确认按展示内容处理')
+        self.assertEqual(result['caption'],report['caption'])
+        self.assertNotIn('。。',result['caption'])
+
     def test_field_spacing_is_safe_and_check_only_keeps_original(self):
         expected=caption('<主体1>说{hello\n## subject\nworld}。\n\n随后转身。')
         raw=expected.replace('\n\n## ', '\n## ').rstrip('\n')

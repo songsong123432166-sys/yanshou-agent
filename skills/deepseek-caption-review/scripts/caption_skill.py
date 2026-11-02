@@ -15,10 +15,11 @@ from uuid import uuid4
 import _schema as schema
 import _rules as rules
 from _time_layout import normalize as normalize_time_layout
+from _labels import normalize_separators
 from _audio import audio_spans
 import caption_qa_width as width
 
-VERSION='1.1.0'
+VERSION='1.2.0'
 SEMANTIC_LABELS={'疑似病句','疑似错别字','标点问题','主体引用','内容符号'}
 LABELS={'duplicate_defined_subjects':'主体重复定义','missing_subjects':'自然指令漏写已定义主体',
         'ghost_subjects':'引用未定义主体','skipped_numbering':'主体编号不连续',
@@ -59,51 +60,20 @@ def sections(text):
     return result
 
 
-def protected(text):
-    spans=list(audio_spans(text))
-    spans += [(m.start(),m.end()) for m in width.SCREEN.finditer(text)]
-    return sorted(set(spans))
-
-
-def outside_transform(text,transform):
-    spans=protected(text)+[(m.start(),m.end()) for m in width.TECH.finditer(text)]
-    spans += [(m.start(),m.end()) for m in re.finditer(r'"[^"\n]*"|“[^”\n]*”|「[^」\n]*」',text)]
-    merged=[]
-    for a,b in sorted(spans):
-        if merged and a<=merged[-1][1]:merged[-1]=(merged[-1][0],max(b,merged[-1][1]))
-        else:merged.append((a,b))
-    parts=[];cursor=0
-    for a,b in merged:parts.extend((transform(text[cursor:a]),text[a:b]));cursor=b
-    parts.append(transform(text[cursor:]));return ''.join(parts)
+protected=width.protected_spans
+outside_transform=width.outside_literals
 
 
 def safe_body(name,text):
+    text=normalize_separators(name,text)
     if name in rules.PUNCTUATION_EXEMPT_SECTIONS:return text
-    spans=protected(text)
-    def allowed(op):
-        for a,b in spans:
-            if op['start']<b and op['end']>a:
-                outer=op['width_rule'] in {'人声包裹符','背景音乐外层括号','音效包裹符'} and (op['start']==a or op['end']==b)
-                if not outer:return False
-        return True
-    edits=[op for op in width.operations(name,text) if allowed(op)]
-    for op in reversed(edits):text=text[:op['start']]+op['new']+text[op['end']:]
+    text=width.normalize_basic_width(name,text)
     if name in rules.LLM_TARGET_SECTIONS:text=outside_transform(text,rules._normalize_markup_tags)
     def typos(value):
         for old,new in rules.UNAMBIGUOUS_TYPO_FIXES.items():value=value.replace(old,new)
         return value
     text=normalize_time_layout(name,outside_transform(text,typos))
-    spans=protected(text);lines=[];offset=0
-    for line in text.splitlines(keepends=True):
-        original_length=len(line)
-        trimmed=line.rstrip();end=offset+len(trimmed)
-        inside=any(a<end<b for a,b in spans)
-        unclosed=any(end==b and text[a:a+1] in '{｛【<＜（(' and
-            (text[a:a+1],text[b-1:b]) not in {('{','}'),('｛','｝'),('【','】'),('<','>'),('＜','＞'),('（','）'),('(',')')} for a,b in spans)
-        if trimmed.strip() and trimmed[-1] not in rules.SENTENCE_ENDINGS and not inside and not unclosed:
-            line=trimmed+'。'+line[len(trimmed):]
-        lines.append(line);offset+=original_length
-    return normalize_time_layout(name,''.join(lines))
+    return width.finish_paragraphs(text,rules.SENTENCE_ENDINGS)
 
 
 def excerpt(text,snippet):
@@ -206,6 +176,17 @@ def candidate_operation(caption,item):
     else:
         if type(occurrence) is not int or not 1<=occurrence<=len(positions):raise ValueError('occurrence定位无效。')
         pos=positions[occurrence-1]
+    # The report often omits punctuation immediately beside its excerpt.
+    # Reconcile that context before displaying or applying the candidate.
+    opaque=protected(text)+[m.span() for m in re.finditer(r'"[^"\n]*"|“[^”]*”|「[^」]*」',text)]
+    outside=lambda p:not any(a<p<b for a,b in opaque)
+    end=pos+len(old)
+    if (new[-1:] in '。，、；：' and new and not old.endswith(new[-1:]) and
+        text[end:end+1]==new[-1:] and outside(end)):
+        new=new[:-1]
+    if (new[:1] in '。，、；：' and new and not old.startswith(new[:1]) and
+        text[max(0,pos-1):pos]==new[:1] and outside(pos)):
+        new=new[1:]
     after=text[:pos]+new+text[pos+len(old):]
     if field in rules.PUNCTUATION_EXEMPT_SECTIONS:
         labels=lambda value:re.sub(r'[|｜\s、，,；;]','',value)
@@ -254,7 +235,11 @@ def propose(report,proposal):
         if item.get('field') not in sections(report['caption']):raise ValueError('语义建议字段不存在。')
         item.setdefault('original','');item.setdefault('replacement',None);item['decision']='pending';item['source']='semantic'
         if item['original'] and item['original'] not in sections(report['caption'])[item['field']]['text']:raise ValueError('节选不是当前稿中的原文。')
-        if item['replacement'] is not None:item['operation']=candidate_operation(report['caption'],item)
+        if item['replacement'] is not None:
+            item['operation']=candidate_operation(report['caption'],item)
+            item['replacement']=item['operation']['new']
+            if item['replacement']==item['original']:
+                item['reason']+='；原文已有所建议的标点，无需重复插入。'
         key=(item['field'],item['label'],item['original'],item['reason'])
         if key not in existing:result['findings'].append(item);existing.add(key)
     result['semantic_status']=proposal['semantic_status'];bind_findings(result)

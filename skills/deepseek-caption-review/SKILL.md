@@ -5,7 +5,7 @@ display_name_en: Single Caption Review and Repair
 description: 检查用户粘贴的一段结构化视频 Caption，按固定规则安全修正格式，给出待确认的语义建议，并仅应用用户明确批准的改稿。
 description_zh: 一次检查一段 Caption；安全格式直接修正，病句和主体引用等建议确认后应用，保留原文与修订记录。
 description_en: Review one structured video Caption, apply deterministic safe fixes, and apply semantic suggestions only after explicit human confirmation.
-version: 1.1.0
+version: 1.2.0
 author: Caption QA 项目
 examples_zh:
   - 检查并安全修正下面这一段 Caption。
@@ -22,6 +22,8 @@ examples_zh:
 首次处理或规则版本变化时，读取 [references/rules.md](references/rules.md)；遇到音频、场景编号或旧字段时按其中边界处理。语义检查时读取 [references/semantic-review.md](references/semantic-review.md)。容易误伤的案例见 [references/examples.md](references/examples.md)。这些文件随包提供，不访问外部规则。
 
 固定模板为12字段，包含“画面元素”；标题写成 `## 字段名`，两个井号后恰好一个半角空格。每个字段内容结束后留一个空行，包括最后一个字段；除自然指令主时间段分段外，字段内部原有分段和空白保留。视觉标签字段为 `video_similarity_tag`。场景定义与编号按输入保留，不能擅自纠正场景重号。加粗或HTML转义若只出现在聊天展示中，不推断原数据也含有这些字符；若实际输入无法分清排版与正文，保留并说明待核对，不全局解码或删除。
+
+中文叙述的基础标点、明确的全角/半角包裹符、段尾句号以及完整多标签分隔符默认自动规范；不把中文 `：` 改成英文 `:`，不重复补句号。音频内部、画面文字和技术值保留，缺失/错配符号仍需确认。具体例子见规则中的“基础标点自动修正”表。
 
 自然指令中的 `0-2秒`、`2-8秒`等主时间段各自成段，段间空一行，脚本默认自动修正；段内 `第2秒`、`第4秒`不强制换段。不改秒数，不拆台词、音乐/音效或画面文字里的时间。
 

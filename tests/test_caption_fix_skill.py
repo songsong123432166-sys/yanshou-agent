@@ -46,11 +46,43 @@ class CaptionFixSkillTests(unittest.TestCase):
         row=json.loads(Path(paths['output']).read_text())
         self.assertIn('奔跑。\n\n2-8秒',row['caption'])
 
-    def test_skill_update_does_not_automatically_change_metadata_separators(self):
+    def test_complete_metadata_separators_are_normalized(self):
         raw=GOOD+'## audio_similarity_tag\n音色-相同，环境音-相同\n'
         self.source.write_text(json.dumps({'id':'0001','caption':raw})+'\n')
         paths,_=self.finish(self.run_supported('--column','caption','--id-column','id'))
-        self.assertIn('音色-相同，环境音-相同',json.loads(Path(paths['output']).read_text())['caption'])
+        self.assertIn('音色-相同｜环境音-相同',json.loads(Path(paths['output']).read_text())['caption'])
+
+    def test_basic_punctuation_widths_are_automatic_and_audio_words_are_opaque(self):
+        audio='（背景音乐是歌曲《You(=I)》,女声唱道{Hi, world!}）'
+        raw=GOOD.replace('<主体1>：身穿白袍。','＜ 主体1 ＞:身穿白袍,面向镜头.').replace(
+            '0-4秒，第0秒，<主体1>向前跑。','0-4秒，＜主体1＞说道｛Hello, world!｝,'+audio+'＜传来嗒嗒的脚步声,持续响起＞')
+        self.source.write_text(json.dumps({'id':'0001','caption':raw,'note':raw})+'\n')
+        paths,_=self.finish(self.run_supported('--column','caption','--id-column','id'))
+        row=json.loads(Path(paths['output']).read_text())
+        self.assertIn('<主体1>：身穿白袍，面向镜头。',row['caption'])
+        self.assertIn('说道{Hello, world!}，'+audio+'<传来嗒嗒的脚步声,持续响起>。',row['caption'])
+        self.assertEqual(row['note'],raw)
+
+    def test_existing_endings_and_technical_tokens_are_not_stacked_or_rewritten(self):
+        instruction='<主体1>记录3.14，地址https://example.test/a，时间12:30。\nHello.\n<主体1>转头，'
+        raw=GOOD.replace('0-4秒，第0秒，<主体1>向前跑。',instruction)
+        self.source.write_text(json.dumps({'id':'0001','caption':raw})+'\n')
+        paths,_=self.finish(self.run_supported('--column','caption','--id-column','id'))
+        value=json.loads(Path(paths['output']).read_text())['caption']
+        self.assertIn(instruction,value);self.assertNotIn('，。',value);self.assertNotIn('Hello.。',value)
+
+    def test_ambiguous_label_values_are_preserved_and_not_guessed(self):
+        raw=GOOD+'## audio_similarity_tag\n音色-相同，环境中传来风声\n'
+        self.source.write_text(json.dumps({'id':'0001','caption':raw})+'\n')
+        paths,report=self.finish(self.run_supported('--column','caption','--id-column','id'))
+        self.assertIn('音色-相同，环境中传来风声',json.loads(Path(paths['output']).read_text())['caption'])
+        self.assertGreater(report['counts']['review'],0)
+
+    def test_voice_definition_colon_is_outside_protected_audio_words(self):
+        raw=GOOD.replace('<主体1>：身穿白袍。','＜主体1＞:画外青年男声,音色清朗.')
+        self.source.write_text(json.dumps({'id':'0001','caption':raw})+'\n')
+        paths,_=self.finish(self.run_supported('--column','caption','--id-column','id'))
+        self.assertIn('<主体1>：画外青年男声,音色清朗.',json.loads(Path(paths['output']).read_text())['caption'])
 
     def run_supported(self, *args, source=None):
         # No third-party site packages, project cwd, API keys or PYTHONPATH.
@@ -197,14 +229,14 @@ class CaptionFixSkillTests(unittest.TestCase):
         self.assertIn('<主体2>', rows[1][1])
         self.assertNotIn('身穿白袍', rows[1][1])
 
-    def test_metadata_and_disabled_items_remain_unchanged(self):
+    def test_metadata_text_and_disabled_items_remain_unchanged_except_recognized_separators(self):
         metadata = '## 任务类型\n人物参考、动态参考\n## video_similarity_tag\n实体/IP｜动态\n'
         raw = metadata + GOOD.replace('<主体1>：身穿白袍。', '<主体1>：<主体1>：手手抬起，眼晴明亮。')
         self.source.write_text(json.dumps({'id': '001', 'caption': raw}) + '\n')
         paths, report = self.finish(self.run_supported())
-        self.assertEqual(json.loads(Path(paths['output']).read_text())['caption'], raw)
-        self.assertEqual(report['counts']['changed'], 0)
-        self.assertEqual(report['counts']['review'], 1)
+        self.assertEqual(json.loads(Path(paths['output']).read_text())['caption'], raw.replace('人物参考、动态参考','人物参考｜动态参考'))
+        self.assertEqual(report['counts']['changed'], 1)
+        self.assertEqual(report['counts']['review'], 0)
 
     def test_missing_id_stays_missing_and_is_not_replaced_by_row_number(self):
         raw = GOOD.replace('<主体1>向前跑。', '男子向前跑。')

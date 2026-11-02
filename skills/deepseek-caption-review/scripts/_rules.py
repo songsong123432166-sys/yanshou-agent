@@ -5,8 +5,7 @@ from collections import Counter
 from collections.abc import Mapping
 from typing import TypedDict
 from caption_qa_symbols import LITERAL_RE, mask_literals, symbol_findings
-
-def separator_operations(field,text):return []
+from _labels import separator_operations
 
 SUBJECT_RE = re.compile(r"<主体\d+>")
 
@@ -90,7 +89,7 @@ def subject_coverage(sections: Mapping[str, str]) -> dict[str, list[str]]:
             "missing_subjects": ordered(defined - instruction_refs),
             "ghost_subjects": ordered(referenced - defined)}
 
-def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
+def _source_static_rules(sections: Mapping[str, str]) -> list[Issue]:
     """纯 Python 静态预检；不猜测自然语言语义。每个非空行作为可检查段落。"""
     errors: list[Issue] = []
     coverage = subject_coverage(sections)
@@ -151,3 +150,10 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
                     errors.append(_issue("static", name, text, "missing_punctuation", "在段落末尾补全句号。", True))
                 offset += len(line)
     return errors
+
+
+def run_static_rules(sections):
+    # Existing English full stops and ellipses are retained, not missing marks.
+    return [item for item in _source_static_rules(sections)
+            if not (item['issue_type']=='missing_punctuation' and
+                    item['original_snippet'].rstrip().endswith(('.', '…')))]

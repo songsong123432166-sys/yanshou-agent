@@ -119,3 +119,64 @@ def normalize(name,text,*,exempt=False):
 def valid_operation(name,text,op,*,exempt=False):
     return any(all(candidate.get(key)==op.get(key) for key in ('start','end','old','new','width_rule'))
                for candidate in operations(name,text,exempt=exempt))
+
+
+def protected_spans(text):
+    """Opaque audio/screen text for the portable conservative formatter."""
+    from _audio import audio_spans
+    spans=[]
+    for a,b in audio_spans(text)+[m.span() for m in SCREEN.finditer(text)]:
+        # A voice definition's numbered prefix/colon is formatting outside the
+        # audio description. Keep its words opaque, not its definition marker.
+        prefix=re.match(r'[ \t]*[<＜]\s*主体\s*\d+\s*[>＞][ \t]*[：:][ \t]*',text[a:b])
+        if prefix:a+=prefix.end()
+        spans.append((a,b))
+    offset=0
+    for line in text.splitlines(keepends=True):
+        prefix=re.match(r'[ \t]*[<＜]\s*主体\s*\d+\s*[>＞][ \t]*[：:][ \t]*(?=画外|旁白|背景音乐|配乐|环境音|BGM)',line,re.I)
+        if prefix:spans.append((offset+prefix.end(),offset+len(line.rstrip())))
+        offset+=len(line)
+    return sorted(set(spans))
+
+
+def outside_literals(text,transform):
+    spans=protected_spans(text)+[m.span() for m in TECH.finditer(text)]
+    spans += [m.span() for m in re.finditer(r'"[^"\n]*"|“[^”]*”|「[^」]*」',text)]
+    merged=[]
+    for a,b in sorted(spans):
+        if merged and a<=merged[-1][1]:merged[-1]=(merged[-1][0],max(b,merged[-1][1]))
+        else:merged.append((a,b))
+    result=[];cursor=0
+    for a,b in merged:result.extend((transform(text[cursor:a]),text[a:b]));cursor=b
+    result.append(transform(text[cursor:]));return ''.join(result)
+
+
+def normalize_basic_width(name,text,*,exempt=False):
+    """Normalize clear prose/wrapper widths, never opaque interior text."""
+    spans=protected_spans(text)
+    def allowed(op):
+        for a,b in spans:
+            if op['start']<b and op['end']>a:
+                outer=op['width_rule'] in {'人声包裹符','背景音乐外层括号','音效包裹符'} and (op['start']==a or op['end']==b)
+                if not outer:return False
+        return True
+    for op in reversed([o for o in operations(name,text,exempt=exempt) if allowed(o)]):
+        text=text[:op['start']]+op['new']+text[op['end']:]
+    return text
+
+
+def finish_paragraphs(text,sentence_endings='。！？!?'):
+    """Fill absent endings once; existing commas/ellipses are not stacked."""
+    spans=protected_spans(text)
+    spans += [m.span() for m in re.finditer(r'"[^"\n]*"|“[^”]*”|「[^」]*」',text)]
+    result=[];offset=0
+    for line in text.splitlines(keepends=True):
+        original_length=len(line)
+        trimmed=line.rstrip();end=offset+len(trimmed)
+        inside=any(a<end<b for a,b in spans)
+        unclosed=any(end==b and text[a:a+1] in '{｛【<＜（(' and
+            (text[a:a+1],text[b-1:b]) not in {('{','}'),('｛','｝'),('【','】'),('<','>'),('＜','＞'),('（','）'),('(',')')} for a,b in spans)
+        if trimmed.strip() and trimmed[-1] not in sentence_endings+'.，,；;：:、…' and not inside and not unclosed:
+            line=trimmed+'。'+line[len(trimmed):]
+        result.append(line);offset+=original_length
+    return ''.join(result)

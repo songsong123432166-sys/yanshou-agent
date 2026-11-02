@@ -1,5 +1,6 @@
 {
-  "skill_version": "1.1.0",
+  "skill_version": "1.2.0",
+  "punctuation_policy": "basic-punctuation-v1",
   "time_layout_policy": "time-range-paragraph-v1",
   "field_schema_version": 8,
   "auto_fix_policy_version": 9,
@@ -9,13 +10,13 @@
       "source": "captionqa/caption_field_schema.py",
       "source_sha256": "60937841c8caf5092b1ea846a709dbae8d7342c1440078df00d49a8afb2c293c",
       "bundled": "scripts/_schema.py",
-      "bundled_sha256": "c5108344ac62a3fc035d783f865c21d3ee17cdbd5cf8ff519d26e0a42c8cb4c5"
+      "bundled_sha256": "0e5871956035856080eb4892a3993685e7ed59201053393054454a6fe3a59c3b"
     },
     {
       "source": "captionqa/caption_qa_agent.py",
       "source_sha256": "ccd5e53da2d38c0fb29a9b66110ca62d4aa0549c99e73996b8160614c9955b2d",
       "bundled": "scripts/_rules.py",
-      "bundled_sha256": "277cd24d0444bfb37ef9b2142ff5b7d50dc3a1913f949692545fc708c7e03180"
+      "bundled_sha256": "b001be40ed05a763b92acecbe59fe4198b19fde1c54deff6c430495d3e824359"
     },
     {
       "source": "captionqa/caption_qa_review_audio.py",
@@ -25,7 +26,7 @@
     },
     {
       "source": "captionqa/caption_qa_width.py",
-      "source_sha256": "ff260a15fc2235e8a09d91072b36be2c86f91acf5ca220b5c82e5b7704099bfd",
+      "source_sha256": "5c939ed6d3d9fa136e48001d390be39417eaf2c3242899a1ceb2c7c80c981197",
       "bundled": "scripts/_width_literals.py",
       "bundled_sha256": "6b32db5c042f944ba72cd8970f02de444eaffa5c84fcfdabe5dd122e8d399ef8"
     },
@@ -37,9 +38,15 @@
     },
     {
       "source": "captionqa/caption_qa_width.py",
-      "source_sha256": "ff260a15fc2235e8a09d91072b36be2c86f91acf5ca220b5c82e5b7704099bfd",
+      "source_sha256": "5c939ed6d3d9fa136e48001d390be39417eaf2c3242899a1ceb2c7c80c981197",
       "bundled": "scripts/caption_qa_width.py",
-      "bundled_sha256": "ff260a15fc2235e8a09d91072b36be2c86f91acf5ca220b5c82e5b7704099bfd"
+      "bundled_sha256": "15f166e43139d9e54844696afa8252c21e552603f61935e74007bcead5040f47"
+    },
+    {
+      "source": "captionqa/caption_qa_labels.py",
+      "source_sha256": "31a56fc6631f45c38860f8256cffc563cad684e600a6f16fee31bf198ba8cea0",
+      "bundled": "scripts/_labels.py",
+      "bundled_sha256": "3c2c35eebdd18aab886d701293f49b5c74b3749089fda00e77e6ffa329dd5830"
     },
     {
       "source": "captionqa/caption_qa_symbols.py",

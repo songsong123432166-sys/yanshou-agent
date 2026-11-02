@@ -6,11 +6,10 @@ from collections.abc import Mapping, Sequence
 from typing import Any, TypedDict
 from caption_qa_symbols import CONTENT_SYMBOLS, LITERAL_RE, SYMBOL_DELIMITERS, mask_literals, symbol_findings
 from _time_layout import normalize as normalize_time_layout
+import caption_qa_width as width
 from _schema import ALIASES as FIELD_ALIASES, is_generation_request, preferred_header_indices
 
-# This Skill keeps label separators in the human-review scope.
-def separator_operations(field,text):return []
-def normalize_separators(field,text):return text
+from _labels import separator_operations, normalize_separators
 
 SECTION_ALIASES = {alias: name for alias, name in FIELD_ALIASES.items()
                    if name not in {"_task", "_subtask"} and alias != name}
@@ -185,7 +184,7 @@ def subject_coverage(sections: Mapping[str, str]) -> dict[str, list[str]]:
             "missing_subjects": ordered(defined - instruction_refs),
             "ghost_subjects": ordered(referenced - defined)}
 
-def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
+def _source_static_rules(sections: Mapping[str, str]) -> list[Issue]:
     """纯 Python 静态预检；不猜测自然语言语义。每个非空行作为可检查段落。"""
     errors: list[Issue] = []
     coverage = subject_coverage(sections)
@@ -247,29 +246,23 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
                 offset += len(line)
     return errors
 
-def apply_static_fixes(sections: Mapping[str, str]) -> dict[str, str]:
-    """确定性修复：完整标签间的分隔符、裸标签和缺失句末标点。"""
-    fixed: dict[str, str] = OrderedDict()
-    for name, value in sections.items():
+def apply_static_fixes(sections):
+    fixed=OrderedDict()
+    for name,value in sections.items():
         value=normalize_separators(name,value)
-        value=normalize_time_layout(name,value)
+        if name in PUNCTUATION_EXEMPT_SECTIONS:
+            fixed[name]=value
+            continue
+        value=width.normalize_basic_width(name,value)
         if name in LLM_TARGET_SECTIONS:
-            value = _normalize_tags(value)
-        if name not in PUNCTUATION_EXEMPT_SECTIONS:
-            lines: list[str] = []
-            offset = 0
-            literals = list(LITERAL_RE.finditer(value))
-            for line in value.splitlines(keepends=True):
-                text = line.rstrip()
-                end = offset + len(text)
-                inside_literal = any(m.start() < end < m.end() or
-                                     (end == m.end() and m[0][-1] not in '}】') for m in literals)
-                original_length = len(line)
-                if text.strip() and text[-1] not in SENTENCE_ENDINGS and not inside_literal:
-                    # 英文/中文逗号等已有尾符属于标点误用，交给语义阶段；此处只补句号。
-                    line = text + "。" + line[len(text):]
-                lines.append(line)
-                offset += original_length
-            value = "".join(lines)
-        fixed[name] = normalize_time_layout(name,value)
+            value=width.outside_literals(value,_normalize_markup_tags)
+        value=normalize_time_layout(name,value)
+        fixed[name]=width.finish_paragraphs(value,SENTENCE_ENDINGS)
     return fixed
+
+
+def run_static_rules(sections):
+    # Existing English full stops and ellipses are retained, not missing marks.
+    return [item for item in _source_static_rules(sections)
+            if not (item['issue_type']=='missing_punctuation' and
+                    item['original_snippet'].rstrip().endswith(('.', '…')))]
