@@ -164,7 +164,7 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
         report = qa.CaptionQAAgent(client=client).check(raw)
         self.assertEqual(set(request_sections(client.calls[0])), TARGET_SECTIONS|{'画面元素'})
         self.assertEqual(json.loads(client.calls[0]['messages'][1]['content'])['read_only_sections'],['画面元素'])
-        self.assertEqual(report["revised_caption"], raw.replace("|","｜"))
+        self.assertEqual(report["revised_caption"], raw.replace("|","｜").replace("视频1 ｜ 主体7","视频1｜主体7"))
         self.assertEqual(set(qa.LLM_TARGET_SECTIONS), TARGET_SECTIONS)
 
     def test_llm_receives_deterministically_fixed_sections_before_semantics(self) -> None:
@@ -187,7 +187,7 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
         raw = metadata + GOOD
         client = FakeSyncClient(semantic_reply())
         report = qa.CaptionQAAgent(client=client).check(raw)
-        expected = raw.replace("原样  \r\n", "原样。  \r\n").replace("|","｜")
+        expected = raw.replace("原样  \r\n", "原样。  \r\n").replace("|","｜").replace("视频1 ｜ 主体7","视频1｜主体7")
         self.assertEqual(report["revised_caption"], expected)
         self.assertTrue(set(request_sections(client.calls[0])).issubset(TARGET_SECTIONS|{'画面元素'}))
         self.assertEqual(report["status"], "AUTO_FIXED")

@@ -30,24 +30,32 @@ def suggestion(report,original,replacement,label='疑似病句',field='自然指
 
 
 class LocalTests(unittest.TestCase):
+    def test_user_delimiter_example_and_cut_boundaries_round_trip(self):
+        text='0-8秒，<主体1>站立。第1秒，转头。第2秒，镜头切换。第3秒，挥手。'
+        raw=caption(text).replace('人物参考｜场景参考','人物参考 | 场景参考').replace('实体 - 相同｜场景 - 相同','实体-相同 | 场景-相同')
+        expected=caption(text.replace('。第2秒','。\n第2秒'))
+        fixed=app.check(raw)['caption']
+        self.assertEqual(fixed,expected)
+        self.assertEqual(app.check(fixed)['caption'],fixed)
+
     def test_three_internal_cuts_insert_marker_and_two_cuts_split_point_lines(self):
         text='0-8秒，<主体1>站立。第2秒，镜头切换。第4秒，镜头切至侧面。第6秒，切镜。'
         raw=caption(text)
-        expected=raw.replace('0-8秒，','0 - 8秒，镜头多次切换，')
+        expected=raw.replace('0-8秒，','0-8秒，镜头多次切换，')
         self.assertEqual(app.check(raw)['caption'],expected)
         self.assertEqual(app.check(expected)['caption'],expected)
         low=caption(text.replace('第6秒，切镜','第6秒，镜头后拉'))
-        self.assertEqual(app.check(low)['caption'],low.replace('0-8秒','0 - 8秒').replace('。第','。\n第'))
+        self.assertEqual(app.check(low)['caption'],low.replace('。第2秒','。\n第2秒').replace('。第4秒','。\n第4秒'))
 
     def test_audio_and_screen_cut_keywords_do_not_trigger_marker(self):
         text='0-8秒，<主体1>说道{第2秒，镜头切换。第4秒，镜头切换。第6秒，镜头切换}，屏幕显示【镜头切换】。第7秒，转头。'
-        raw=caption(text);expected=raw.replace('0-8秒','0 - 8秒').replace('。第7秒','。\n第7秒')
+        raw=caption(text);expected=raw
         self.assertEqual(app.check(raw)['caption'],expected)
 
     def test_time_ranges_form_paragraphs_without_splitting_point_events_or_speech(self):
         text='0-2秒，<主体1>说道{2-8秒，继续}。第1秒，转头。2-8秒，<主体1>停下。第4秒，微笑。'
         raw=caption(text);report=app.check(raw)
-        expected=raw.replace('0-2秒','0 - 2秒').replace('。2-8秒','。\n\n2 - 8秒').replace('。第','。\n第')
+        expected=raw.replace('。2-8秒','。\n\n2-8秒')
         self.assertEqual(report['caption'],expected)
         self.assertEqual(app.check(expected)['caption'],expected)
         self.assertTrue(report['automatic_changes'])
@@ -57,7 +65,7 @@ class LocalTests(unittest.TestCase):
     def test_new_time_paragraph_has_terminal_punctuation_without_a_second_fix(self):
         raw=caption('0-2秒，<主体1>奔跑 2-8秒，<主体1>停下。')
         fixed=app.check(raw)['caption']
-        self.assertIn('奔跑。\n\n2 - 8秒',fixed)
+        self.assertIn('奔跑。\n\n2-8秒',fixed)
         self.assertEqual(app.check(fixed)['caption'],fixed)
 
     def test_basic_punctuation_outer_wrappers_and_definition_colon(self):

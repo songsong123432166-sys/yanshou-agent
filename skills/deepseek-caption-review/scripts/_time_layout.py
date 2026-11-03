@@ -2,7 +2,9 @@
 import re
 
 
-POLICY='time-cut-layout-v2'
+POLICY='time-cut-boundary-v3'
+
+PREVIOUS_POLICY='time-cut-layout-v2'
 
 LEGACY_POLICY='time-range-paragraph-v1'
 
@@ -15,7 +17,7 @@ CUT=re.compile(r'镜头(?:快速|迅速|直接|再次|突然|随即|立即)?切(
 
 MARKER='镜头多次切换'
 
-REASON='时间段间空一行；段内切镜至少3次时在时间戳后标注“镜头多次切换”，否则“第X秒”另起一行。'
+REASON='时间段间空一行；段内切镜不足3次时仅在明确切镜处换行，其他“第X秒”不强制换行；至少3次时标注“镜头多次切换”。'
 
 def _context(text):
     from _audio import audio_spans
@@ -47,13 +49,13 @@ def legacy_operations(field,text):
 def _negated(text,start):
     return bool(re.search(r'(?:不|未|无|没有|无需|并非|禁止|避免)(?:发生|进行|再|需|要)?[ \t]*$',text[max(0,start-10):start]))
 
-def operations(field,text):
+def _operations(field,text,legacy_points=False):
     if field!='自然指令':return []
     masked,ranges=_context(text)
     newline='\r\n' if '\r\n' in text else '\n'
-    result=[]
+    result=[];policy=PREVIOUS_POLICY if legacy_points else POLICY
     for op in legacy_operations(field,text):
-        result.append({**op,'time_range_rule':POLICY,'layout_kind':'range_break','anchor':op['end']})
+        result.append({**op,'time_range_rule':policy,'layout_kind':'range_break','anchor':op['end']})
     blocks=[(m.start(),m.end(),ranges[n+1].start() if n+1<len(ranges) else len(text),m)
             for n,m in enumerate(ranges)]
     if not ranges or masked[:ranges[0].start()].strip():
@@ -67,9 +69,16 @@ def operations(field,text):
                 separator=re.match(r'[ \t]*[，,:：][ \t]*',text[body:end])
                 insert=body+(separator.end() if separator else 0)
                 result.append({'start':insert,'end':insert,'old':'','new':MARKER+'，',
-                    'time_range_rule':POLICY,'layout_kind':'multi_cut_marker','heading':heading[0],'anchor':start})
+                    'time_range_rule':policy,'layout_kind':'multi_cut_marker','heading':heading[0],'anchor':start})
             continue
-        for point in POINT.finditer(masked,body,end):
+        points=list(POINT.finditer(masked,body,end))
+        boundaries=points if legacy_points else []
+        if not legacy_points:
+            for cut in cuts:
+                prior=[p for p in points if p.end()<=cut.start() and not re.search(r'[。！？!?；;\r\n]',masked[p.end():cut.start()])]
+                boundary=prior[-1] if prior else cut
+                if not boundaries or boundaries[-1].start()!=boundary.start():boundaries.append(boundary)
+        for point in boundaries:
             # An adjacent repeated start time is part of the opening timestamp,
             # e.g. "0-4秒，第0秒，...", rather than a later event boundary.
             if (heading is not None and not masked[body:point.start()].strip(' \t\r\n，,:：')
@@ -77,8 +86,10 @@ def operations(field,text):
             gap=re.search(r'[ \t\r\n]*$',text[:point.start()])
             if not text[:gap.start()].strip() or '\n' in gap[0]:continue
             result.append({'start':gap.start(),'end':point.start(),'old':gap[0],'new':newline,
-                'time_range_rule':POLICY,'layout_kind':'point_break','heading':point[0],'anchor':point.start()})
+                'time_range_rule':policy,'layout_kind':'point_break' if legacy_points else 'cut_break','heading':point[0],'anchor':point.start()})
     return sorted(result,key=lambda op:(op['start'],op['end']))
+
+def operations(field,text):return _operations(field,text)
 
 def findings(field,text):
     grouped={}

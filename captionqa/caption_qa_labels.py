@@ -4,7 +4,7 @@ from captionqa.caption_field_schema import TASK_LABELS
 
 POLICY='label-separator-v2'
 LEGACY_POLICY='label-separator-v1'
-PIPE_POLICY='fullwidth-pipe-v1'
+PIPE_POLICY='label-delimiter-format-v2'
 FIELDS={'任务类型','task_type','subtask_type','video_similarity_tag','similarity_tag',
         'audio_similarity_tag','视听标签'}
 SEPARATOR=re.compile(r'\r\n|[\r\n|｜、，,；;]')
@@ -39,7 +39,7 @@ def separator_operations(field,text):return _separator_operations(field,text)
 def legacy_separator_operations(field,text):return _separator_operations(field,text,legacy=True)
 
 
-def pipe_width_operations(field,text):
+def legacy_pipe_width_operations(field,text):
     if field not in FIELDS or not isinstance(text,str):return []
     if re.search(r'(?m)^[ \t]*#{2,6}[ \t]*\S',text):return []
     from captionqa.caption_qa_width import protected_spans, TECH
@@ -47,6 +47,19 @@ def pipe_width_operations(field,text):
     protected += [m.span() for m in re.finditer(r'“[^”]*”|「[^」]*」|"[^"\n]*"',text)]
     return [{'start':m.start(),'end':m.end(),'old':'|','new':'｜'} for m in re.finditer(r'\|',text)
             if not any(a<=m.start()<b for a,b in protected)]
+
+
+def pipe_width_operations(field,text):
+    if field not in FIELDS or not isinstance(text,str):return []
+    if re.search(r'(?m)^[ \t]*#{2,6}[ \t]*\S',text):return []
+    from captionqa.caption_qa_width import protected_spans, TECH
+    from captionqa.caption_qa_spacing import operations as spacing_operations
+    protected=protected_spans(text)+[m.span() for m in TECH.finditer(text)]
+    protected += [m.span() for m in re.finditer(r'“[^”]*”|「[^」]*」|"[^"\n]*"',text)]
+    edits=[{'start':m.start(),'end':m.end(),'old':m[0],'new':'｜'}
+        for m in re.finditer(r'[ \t\u3000]*[|｜][ \t\u3000]*',text)
+        if m[0]!='｜' and not any(m.start()<b and m.end()>a for a,b in protected)]
+    return sorted(edits+spacing_operations(field,text),key=lambda op:(op['start'],op['end']))
 
 
 def normalize_pipe_width(field,text):
@@ -107,12 +120,12 @@ def enrich_pipe_width(document,records):
                     'row_index':index,'sample_id':sample_id,'name':name,'original':original,'issue_ids':[],
                     'source_sheet':record.get('source_sheet'),'source_row':record.get('source_row')}
                 document['fields'].append(field)
-            if any(i['field_id']==field['field_id'] and i['kind']=='pipe_width' for i in document['issues']):continue
+            if any(i['field_id']==field['field_id'] and i['kind'] in {'pipe_width','label_separator'} and i['operations'] for i in document['issues']):continue
             key=hashlib.sha256(f"{field['field_id']}:{PIPE_POLICY}".encode()).hexdigest()[:24]
             decision='auto' if document['workflow_version'] in AUTO_WORKFLOWS and field['sample_id'] else 'pending'
             issue={'issue_id':key,'field_id':field['field_id'],'sample_id':field['sample_id'],'row_index':index,
-                'field':name,'kind':'pipe_width','label':'标签竖线全角化','snippet':original.strip(),
-                'excerpts':[original.strip()],'subject':'','reason':'标签分隔符统一使用全角竖线 ｜，标签文字保留。',
+                'field':name,'kind':'pipe_width','label':'标签分隔符格式','snippet':original.strip(),
+                'excerpts':[original.strip()],'subject':'','reason':'标签用全角竖线｜连接，竖线两侧不留空格；标签内 - 两侧各一个空格，标签文字保留。',
                 'decision':decision,'operations':ops,'locations':[[o['start'],o['end']] for o in ops],
                 'can_auto_fix':True,'origin':'static','source_issue_index':None}
             document['issues'].append(issue);field['issue_ids'].append(key);changed.append(key)

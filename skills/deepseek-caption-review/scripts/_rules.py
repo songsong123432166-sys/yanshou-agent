@@ -116,9 +116,10 @@ def _source_static_rules(sections: Mapping[str, str]) -> list[Issue]:
                 TIME_LAYOUT_REASON,True))
         if name in MULTI_LABEL_SECTIONS:
             from _labels import pipe_width_operations
-            if pipe_width_operations(name,value):
+            if pipe_width_operations(name,value) and not (separator_operations(name,value) and
+                    (len([line for line in value.splitlines() if line.strip()])>1 or re.search(r'[、，,；;]',value))):
                 errors.append(_issue('static',name,value.strip(),'pipe_width',
-                    '标签分隔符统一使用全角竖线 ｜，标签文字保留。',True))
+                    '标签用全角竖线｜连接，竖线两侧不留空格；标签内 - 两侧各一个空格，标签文字保留。',True))
             label_lines = [line.strip() for line in value.splitlines() if line.strip()]
             embedded_header = re.search(r"(?m)^[ \t]*#{2,6}[ \t]*\S", value)
             if not embedded_header and (len(label_lines) > 1 or re.search(r"[、，,；;]|^[ \t]*[|｜]|[|｜][ \t]*$|[|｜][ \t]*[|｜]", value.strip())):

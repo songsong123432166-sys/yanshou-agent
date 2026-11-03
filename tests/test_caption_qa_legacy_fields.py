@@ -15,7 +15,7 @@ import tests.test_caption_qa_web as web_tests
 
 PROMPT='以<图片1>中的机甲界面为基础，保留特写，生成一段科幻视频。'
 OLD=('## task_type\n人物参考｜视觉风格参考\n\n## subtask_type\n'+PROMPT+
-     '\n\n## brief_captions\n<图片1>：机甲界面。\n\n## similarity_tag\n实体/IP-相同\n\n'
+     '\n\n## brief_captions\n<图片1>：机甲界面。\n\n## similarity_tag\n实体/IP - 相同\n\n'
      '## subject\n<主体1>：机器人。\n<主体2>：飞船。\n\n'
      '## 总结\n<主体1>追逐<主体2>。\n\n## natural_instruction\n'
      '0-4秒，<主体1>飞向<主体2>。\n')

@@ -1,9 +1,9 @@
 {
-  "skill_version": "1.5.0",
-  "pipe_policy": "fullwidth-pipe-v1",
+  "skill_version": "1.6.0",
+  "pipe_policy": "label-delimiter-format-v2",
   "punctuation_policy": "basic-punctuation-v1",
-  "spacing_policy": "hyphen-spacing-v1",
-  "time_layout_policy": "time-cut-layout-v2",
+  "spacing_policy": "metadata-hyphen-spacing-v2",
+  "time_layout_policy": "time-cut-boundary-v3",
   "field_schema_version": 8,
   "auto_fix_policy_version": 9,
   "scope": "One structured Caption; no network calls, tables, keys or source overwrite.",
@@ -16,9 +16,9 @@
     },
     {
       "source": "captionqa/caption_qa_agent.py",
-      "source_sha256": "9af15aaa51398e48738cf6bd8c84e09ded2e8eb3742cbb529d957ff53627d52f",
+      "source_sha256": "3c2d5938109c0580fcf7ef45c22157e9d085800bffe5d8a0b92b8b4e65be1f1d",
       "bundled": "scripts/_rules.py",
-      "bundled_sha256": "9cce8f5e5d6e97ff3589767f68ac221a982c777b42e12e6d7ce6068ec6c4ce0d"
+      "bundled_sha256": "d19282ee8ef17c211a47984a9609c6c38b166dfe76a444e94a6bd5ceb2b856b3"
     },
     {
       "source": "captionqa/caption_qa_review_audio.py",
@@ -34,15 +34,15 @@
     },
     {
       "source": "captionqa/caption_qa_time_layout.py",
-      "source_sha256": "2b5efd89fe98028ca9e80e9f3d9dcd7cccb1c2aaa68866ed3559cc6cba815a15",
+      "source_sha256": "59801bff3c09c92d94d6c37db47aa6b081fd846c849c2f68b66a161c6cdec047",
       "bundled": "scripts/_time_layout.py",
-      "bundled_sha256": "0b5256f6e00100b1f0de038feca8147380672973c2f4db6a48dc61074358764d"
+      "bundled_sha256": "2d7011ec44366aad219302e6407b495988cf45ff8f8508cff41f64faa862daff"
     },
     {
       "source": "captionqa/caption_qa_spacing.py",
-      "source_sha256": "4919c6eb40eeaf05ecf52ca6671e965a7a4c44bf313bfc9efd0e780772f8362f",
+      "source_sha256": "f7fa874b957b5925d893d219a6f3bc8d725f1f70b5cb065afcb412af6b6aa8f7",
       "bundled": "scripts/_spacing.py",
-      "bundled_sha256": "10b651f6815caf9310ad8e0a380b444db2a6a76e0eeec5da91ab0dfd48f93d63"
+      "bundled_sha256": "50a620bf35d14658ba5f548588349d3e83f981379c5d973ebd8f39731ef5fe8c"
     },
     {
       "source": "captionqa/caption_qa_width.py",
@@ -52,9 +52,9 @@
     },
     {
       "source": "captionqa/caption_qa_labels.py",
-      "source_sha256": "0f057246b1c035058c942e7e00efba5ec49b2d3c9c62acaa92bda07059454740",
+      "source_sha256": "3f3a7b9896288a25b2d5ec5367afdc54910bbd81c30662d3cca5d26817d3b2eb",
       "bundled": "scripts/_labels.py",
-      "bundled_sha256": "59a5ba8d839b8b06daf56b1bd21cb83af0b8168b3917ec7245c1852d274266f5"
+      "bundled_sha256": "839c4035efdbe2bc3e2f67135df755308729424c2e9e7827fe37992c775ccfc4"
     },
     {
       "source": "captionqa/caption_qa_symbols.py",

@@ -39,7 +39,7 @@ class PunctuationPolicyTests(unittest.TestCase):
         raw = GOOD.replace("0-4秒，第0秒，<主体1>向前跑。", EXAMPLE)
         report = qa.CaptionQAAgent(dry_run=True).check(raw)
         self.assertEqual(report["status"], "AUTO_FIXED")
-        expected=(EXAMPLE + "。").replace('。第 1 秒','。\n第 1 秒')
+        expected=(EXAMPLE + "。")
         self.assertEqual(report["revised_caption"], raw.replace(EXAMPLE, expected))
         self.assertEqual(report["remaining_static_errors"], [])
         self.assertEqual(qa.TIMESTAMP_RE.findall(raw), qa.TIMESTAMP_RE.findall(report["revised_caption"]))

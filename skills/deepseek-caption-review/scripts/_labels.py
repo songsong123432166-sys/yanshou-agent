@@ -6,7 +6,7 @@ POLICY='label-separator-v2'
 
 LEGACY_POLICY='label-separator-v1'
 
-PIPE_POLICY='fullwidth-pipe-v1'
+PIPE_POLICY='label-delimiter-format-v2'
 
 FIELDS={'任务类型','task_type','subtask_type','video_similarity_tag','similarity_tag',
         'audio_similarity_tag','视听标签'}
@@ -44,10 +44,13 @@ def pipe_width_operations(field,text):
     if field not in FIELDS or not isinstance(text,str):return []
     if re.search(r'(?m)^[ \t]*#{2,6}[ \t]*\S',text):return []
     from caption_qa_width import protected_spans, TECH
+    from _spacing import operations as spacing_operations
     protected=protected_spans(text)+[m.span() for m in TECH.finditer(text)]
     protected += [m.span() for m in re.finditer(r'“[^”]*”|「[^」]*」|"[^"\n]*"',text)]
-    return [{'start':m.start(),'end':m.end(),'old':'|','new':'｜'} for m in re.finditer(r'\|',text)
-            if not any(a<=m.start()<b for a,b in protected)]
+    edits=[{'start':m.start(),'end':m.end(),'old':m[0],'new':'｜'}
+        for m in re.finditer(r'[ \t\u3000]*[|｜][ \t\u3000]*',text)
+        if m[0]!='｜' and not any(m.start()<b and m.end()>a for a,b in protected)]
+    return sorted(edits+spacing_operations(field,text),key=lambda op:(op['start'],op['end']))
 
 def normalize_pipe_width(field,text):
     for op in reversed(pipe_width_operations(field,text)):

@@ -17,7 +17,7 @@ from captionqa.caption_qa_review_state import highlighted_rows, automatic_issue_
 def document_fingerprint(document):
     # Export caches bind both the saved review and the resolver contract.
     # A code fix must not reuse an older file produced by a previous resolver.
-    raw = json.dumps({'resolver_version':'review-export-v4', 'document':document},
+    raw = json.dumps({'resolver_version':'review-export-v5', 'document':document},
                      sort_keys=True, ensure_ascii=False, separators=(',', ':'))
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 

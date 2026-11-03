@@ -18,17 +18,17 @@ def resolve_field(document, field, issues):
         from captionqa.caption_qa_candidates import valid_candidate, candidate_operations, PUNCTUATION_POLICY, EXPLICIT_PUNCTUATION_POLICY, REWRITE_POLICY
         from captionqa.caption_qa_suggestions import POLICY as SUGGESTION_POLICY
         from captionqa.caption_qa_reference_drafts import POLICY as REFERENCE_POLICY
-        from captionqa.caption_qa_labels import POLICY as SEPARATOR_POLICY, LEGACY_POLICY, legacy_separator_operations, pipe_width_operations
+        from captionqa.caption_qa_labels import POLICY as SEPARATOR_POLICY, LEGACY_POLICY, legacy_separator_operations, pipe_width_operations, legacy_pipe_width_operations
         for issue in selected:
             if issue.get('separator_policy') not in {None,SEPARATOR_POLICY,LEGACY_POLICY}:
                 raise ValueError('标签分隔符规则版本未知，已停止回填。')
-            if issue['kind']=='pipe_width' and issue['operations']!=pipe_width_operations(field['name'],old):
+            if issue['kind']=='pipe_width' and issue['operations'] not in [pipe_width_operations(field['name'],old),legacy_pipe_width_operations(field['name'],old)]:
                 raise ValueError('竖线格式修改与原文不一致，已停止回填。')
             if issue.get('separator_policy')==LEGACY_POLICY and issue['operations']!=legacy_separator_operations(field['name'],old):
                 raise ValueError('旧标签分隔符修改与原文不一致，已停止回填。')
             if issue['kind']=='time_range_break':
-                from captionqa.caption_qa_time_layout import operations as time_layout_operations, legacy_operations
-                allowed=time_layout_operations(field['name'],old)+legacy_operations(field['name'],old)
+                from captionqa.caption_qa_time_layout import operations as time_layout_operations, legacy_operations, previous_operations
+                allowed=time_layout_operations(field['name'],old)+legacy_operations(field['name'],old)+previous_operations(field['name'],old)
                 if not issue['operations'] or any(op not in allowed for op in issue['operations']):
                     raise ValueError('时间段排版修改不符合切镜与换行规则，已停止回填。')
             if issue.get('separator_policy')==SEPARATOR_POLICY:
@@ -75,7 +75,7 @@ def resolve_field(document, field, issues):
     from captionqa.caption_qa_review_model import AUTO_WORKFLOWS
     from captionqa.caption_qa_labels import normalize_pipe_width
     canonical_pipe=(document['workflow_version'] in AUTO_WORKFLOWS or
-                    any(i['kind']=='pipe_width' and i['decision']=='approve' for i in issues))
+                    any(i['kind'] in {'pipe_width','label_separator'} and i['decision']=='approve' for i in issues))
     if canonical_pipe:new=normalize_pipe_width(field['name'],new)
     editor = document['field_edits'].get(field_id, new.strip())
     if canonical_pipe:editor=normalize_pipe_width(field['name'],editor)

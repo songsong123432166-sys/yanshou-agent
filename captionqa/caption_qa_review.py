@@ -18,7 +18,7 @@ from captionqa.caption_qa_review_state import automatic_issue_ids, human_review_
 from captionqa.caption_qa_review_edits import approved_changes
 from captionqa.caption_qa_review_store import atomic_json, validate_binding
 
-LABELS = {"pipe_width":"标签竖线全角化", "time_range_break":"时间段分段", "missing_punctuation": "缺少段尾标点", "bare_tags": "编号标签格式",
+LABELS = {"pipe_width":"标签分隔符格式", "time_range_break":"时间段分段", "missing_punctuation": "缺少段尾标点", "bare_tags": "编号标签格式",
           "missing_subjects": "自然指令漏写已定义主体", "ghost_subjects": "引用未定义主体",
           "duplicate_defined_subjects": "主体重复定义", "skipped_numbering": "主体编号不连续",
           "symbol_format": "内容符号不成对", "label_separator": "多标签拼接符不规范",

@@ -7,9 +7,9 @@ class SpacingTests(unittest.TestCase):
     def test_time_hyphens_have_exactly_one_ascii_space_and_are_idempotent(self):
         for source in ['0-2秒','0 -2秒','0-  2秒','0\t-\t2秒','0　-　2秒','0 - 2秒']:
             text=source+'，镜头前推。'
-            self.assertEqual(normalize('自然指令',text),'0 - 2秒，镜头前推。')
+            self.assertEqual(normalize('自然指令',text),text)
             self.assertEqual(normalize('自然指令',normalize('自然指令',text)),normalize('自然指令',text))
-        self.assertEqual(normalize('自然指令','0.5-2.5秒，转头。00:02-00:08，奔跑。'),'0.5 - 2.5秒，转头。00:02 - 00:08，奔跑。')
+        self.assertEqual(normalize('自然指令','0.5-2.5秒，转头。00:02-00:08，奔跑。'),'0.5-2.5秒，转头。00:02-00:08，奔跑。')
 
     def test_metadata_separator_spacing_does_not_change_slashes_or_pipe_width(self):
         text='实体/IP-相同|镜头/运镜 -相同｜编辑-改'
@@ -26,7 +26,7 @@ class SpacingTests(unittest.TestCase):
 
     def test_time_formatting_does_not_touch_point_events_or_other_range_symbols(self):
         text='0-2秒，第1秒，转头。2～8秒，第4秒，微笑。'
-        self.assertEqual(normalize('自然指令',text),'0 - 2秒，第1秒，转头。2～8秒，第4秒，微笑。')
+        self.assertEqual(normalize('自然指令',text),text)
         self.assertEqual(normalize('similarity_label','Yes-No'),'Yes-No')
 
 if __name__=='__main__':unittest.main()

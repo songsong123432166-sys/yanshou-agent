@@ -60,7 +60,7 @@ LLM_SYSTEM_PROMPT = """
 5. 绝对豁免项（严禁报错）：
    - 已停用：属性冲突（含跨字段属性冲突）、衍字/叠词冗余、重复标签前缀。这三项不检查、不提示、不转人工、不修复；不能换成“语法病句”“错别字”“标点”再次报告。原有叠词和重复前缀保持原样，不得删除任何重复字词或重复标签。长袍/裙摆、颜色/服饰等属性不一致不属于本次质检范围。
    - 严禁挑刺 `## 自然指令` 中的时间戳逻辑（如“0-4秒...第0秒...”完全合规，保持原样）。
-   - 时间段排版由本地规则处理：段内切镜至少3次时标注“镜头多次切换”，“第X秒”不强制换行；不足3次时“第X秒”另起一行。推拉摇移不算切镜；不要把已规范的分段、标记当作语病，不改秒数、不推断不存在的切镜。
+   - 时间段排版由本地规则处理：段内切镜至少3次时标注“镜头多次切换”，“第X秒”不强制换行；不足3次时仅在明确切镜处换行，普通动作的“第X秒”不换行。推拉摇移不算切镜；不要把已规范的分段、标记当作语病，不改秒数、不推断不存在的切镜。
    - 严禁因为 `<场景N>` 或 `## 画面元素` 未在后文出现而报错（只要求已定义的 `<主体N>` 在自然指令中出现）。
 6. 修订边界与差异化回传：
    - 新版字段优先，旧别名仅用于补充缺少或留空的新版字段。字段优先级由程序处理，不能把旧字段内容混入已选定的新版字段。
@@ -470,9 +470,10 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
                 TIME_LAYOUT_REASON,True))
         if name in MULTI_LABEL_SECTIONS:
             from captionqa.caption_qa_labels import pipe_width_operations
-            if pipe_width_operations(name,value):
+            if pipe_width_operations(name,value) and not (separator_operations(name,value) and
+                    (len([line for line in value.splitlines() if line.strip()])>1 or re.search(r'[、，,；;]',value))):
                 errors.append(_issue('static',name,value.strip(),'pipe_width',
-                    '标签分隔符统一使用全角竖线 ｜，标签文字保留。',True))
+                    '标签用全角竖线｜连接，竖线两侧不留空格；标签内 - 两侧各一个空格，标签文字保留。',True))
             label_lines = [line.strip() for line in value.splitlines() if line.strip()]
             embedded_header = re.search(r"(?m)^[ \t]*#{2,6}[ \t]*\S", value)
             if not embedded_header and (len(label_lines) > 1 or re.search(r"[、，,；;]|^[ \t]*[|｜]|[|｜][ \t]*$|[|｜][ \t]*[|｜]", value.strip())):
