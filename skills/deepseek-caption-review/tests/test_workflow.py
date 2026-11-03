@@ -16,7 +16,7 @@ import _schema as schema
 
 def caption(instruction='<主体1>转头，面向镜头。'):
     fields={'任务类型':'人物参考|场景参考','提示':'生成一个人物转头的视频。','similarity_label':'yes',
-        'video_similarity_tag':'实体-相同|场景-相同','audio_similarity_tag':'无',
+        'video_similarity_tag':'实体 - 相同|场景 - 相同','audio_similarity_tag':'无',
         '输入描述':'<图片1>：一名男子。','基调':'写实。','场景':'<场景1>：室内看台。',
         '主体':'<主体1>：<图片1>中的男子，身穿白色衬衫。','画面元素':'无。',
         '总结':'<主体1>在<场景1>中转头。','自然指令':instruction}
@@ -33,7 +33,7 @@ class LocalTests(unittest.TestCase):
     def test_time_ranges_form_paragraphs_without_splitting_point_events_or_speech(self):
         text='0-2秒，<主体1>说道{2-8秒，继续}。第1秒，转头。2-8秒，<主体1>停下。第4秒，微笑。'
         raw=caption(text);report=app.check(raw)
-        expected=raw.replace('。2-8秒','。\n\n2-8秒')
+        expected=raw.replace('0-2秒','0 - 2秒').replace('。2-8秒','。\n\n2 - 8秒')
         self.assertEqual(report['caption'],expected)
         self.assertEqual(app.check(expected)['caption'],expected)
         self.assertTrue(report['automatic_changes'])
@@ -43,7 +43,7 @@ class LocalTests(unittest.TestCase):
     def test_new_time_paragraph_has_terminal_punctuation_without_a_second_fix(self):
         raw=caption('0-2秒，<主体1>奔跑 2-8秒，<主体1>停下。')
         fixed=app.check(raw)['caption']
-        self.assertIn('奔跑。\n\n2-8秒',fixed)
+        self.assertIn('奔跑。\n\n2 - 8秒',fixed)
         self.assertEqual(app.check(fixed)['caption'],fixed)
 
     def test_basic_punctuation_outer_wrappers_and_definition_colon(self):
@@ -62,12 +62,12 @@ class LocalTests(unittest.TestCase):
         self.assertFalse(any(i.get('original')=='Hello.' for i in report['findings']))
 
     def test_recognized_metadata_separators_are_safe_but_prose_and_empty_labels_are_not(self):
-        raw=caption().replace('实体-相同|场景-相同','实体/IP-相同，镜头/运镜-相同')
-        fixed=app.check(raw)['caption'];self.assertIn('实体/IP-相同｜镜头/运镜-相同',fixed)
+        raw=caption().replace('实体 - 相同|场景 - 相同','实体/IP-相同，镜头/运镜-相同')
+        fixed=app.check(raw)['caption'];self.assertIn('实体/IP - 相同｜镜头/运镜 - 相同',fixed)
         for value in ['音色-相同，环境中传来风声','音色-相同||音乐-相同']:
             raw=caption().replace('## audio_similarity_tag\n无','## audio_similarity_tag\n'+value)
             report=app.check(raw)
-            self.assertIn(value,report['caption']);self.assertTrue(report['findings'])
+            self.assertIn(value.replace('-',' - '),report['caption']);self.assertTrue(report['findings'])
 
     def test_voice_definition_colon_is_formatting_while_description_words_stay_protected(self):
         raw=caption().replace('<主体1>：<图片1>中的男子，身穿白色衬衫。','＜主体1＞:画外青年男声,音色清朗.')

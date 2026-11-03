@@ -22,7 +22,7 @@ def separator_operations(field, text):
     def valid(label):
         value=label.strip()
         if field in {'任务类型','task_type','subtask_type'}:
-            return value in TASK_LABELS
+            return re.sub(r'\s*-\s*','-',value) in TASK_LABELS
         dimensions=AUDIO if field=='audio_similarity_tag' else VISUAL if field in {'video_similarity_tag','similarity_tag'} else VISUAL+'|'+AUDIO
         return bool(re.fullmatch(r'(?:'+dimensions+r')\s*-\s*(?:'+RELATION+r')',value,re.I))
     if not all(valid(label) for label in labels):return []

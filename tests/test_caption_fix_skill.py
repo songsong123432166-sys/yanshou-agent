@@ -35,7 +35,7 @@ class CaptionFixSkillTests(unittest.TestCase):
         self.source.write_text(json.dumps({'id':'0001','caption':raw,'note':raw})+'\n')
         paths,_=self.finish(self.run_supported('--column','caption','--id-column','id'))
         row=json.loads(Path(paths['output']).read_text())
-        self.assertEqual(row['caption'],raw.replace('。2-8秒','。\n\n2-8秒'))
+        self.assertEqual(row['caption'],raw.replace('0-2秒','0 - 2秒').replace('。2-8秒','。\n\n2 - 8秒'))
         self.assertEqual(row['note'],raw)
 
     def test_newly_split_paragraph_gets_existing_terminal_punctuation_in_one_pass(self):
@@ -44,13 +44,13 @@ class CaptionFixSkillTests(unittest.TestCase):
         self.source.write_text(json.dumps({'id':'0001','caption':raw})+'\n')
         paths,_=self.finish(self.run_supported('--column','caption','--id-column','id'))
         row=json.loads(Path(paths['output']).read_text())
-        self.assertIn('奔跑。\n\n2-8秒',row['caption'])
+        self.assertIn('奔跑。\n\n2 - 8秒',row['caption'])
 
     def test_complete_metadata_separators_are_normalized(self):
         raw=GOOD+'## audio_similarity_tag\n音色-相同，环境音-相同\n'
         self.source.write_text(json.dumps({'id':'0001','caption':raw})+'\n')
         paths,_=self.finish(self.run_supported('--column','caption','--id-column','id'))
-        self.assertIn('音色-相同｜环境音-相同',json.loads(Path(paths['output']).read_text())['caption'])
+        self.assertIn('音色 - 相同｜环境音 - 相同',json.loads(Path(paths['output']).read_text())['caption'])
 
     def test_basic_punctuation_widths_are_automatic_and_audio_words_are_opaque(self):
         audio='（背景音乐是歌曲《You(=I)》,女声唱道{Hi, world!}）'
@@ -75,7 +75,7 @@ class CaptionFixSkillTests(unittest.TestCase):
         raw=GOOD+'## audio_similarity_tag\n音色-相同，环境中传来风声\n'
         self.source.write_text(json.dumps({'id':'0001','caption':raw})+'\n')
         paths,report=self.finish(self.run_supported('--column','caption','--id-column','id'))
-        self.assertIn('音色-相同，环境中传来风声',json.loads(Path(paths['output']).read_text())['caption'])
+        self.assertIn('音色 - 相同，环境中传来风声',json.loads(Path(paths['output']).read_text())['caption'])
         self.assertGreater(report['counts']['review'],0)
 
     def test_voice_definition_colon_is_outside_protected_audio_words(self):
@@ -234,7 +234,7 @@ class CaptionFixSkillTests(unittest.TestCase):
         raw = metadata + GOOD.replace('<主体1>：身穿白袍。', '<主体1>：<主体1>：手手抬起，眼晴明亮。')
         self.source.write_text(json.dumps({'id': '001', 'caption': raw}) + '\n')
         paths, report = self.finish(self.run_supported())
-        self.assertEqual(json.loads(Path(paths['output']).read_text())['caption'], raw.replace('人物参考、动态参考','人物参考｜动态参考'))
+        self.assertEqual(json.loads(Path(paths['output']).read_text())['caption'], raw.replace('人物参考、动态参考','人物参考｜动态参考').replace('0-4秒','0 - 4秒'))
         self.assertEqual(report['counts']['changed'], 1)
         self.assertEqual(report['counts']['review'], 0)
 

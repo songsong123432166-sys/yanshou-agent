@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, TypedDict
 from caption_qa_symbols import CONTENT_SYMBOLS, LITERAL_RE, SYMBOL_DELIMITERS, mask_literals, symbol_findings
 from _time_layout import normalize as normalize_time_layout
+from _spacing import normalize as normalize_spacing
 import caption_qa_width as width
 from _schema import ALIASES as FIELD_ALIASES, is_generation_request, preferred_header_indices
 
@@ -249,7 +250,7 @@ def _source_static_rules(sections: Mapping[str, str]) -> list[Issue]:
 def apply_static_fixes(sections):
     fixed=OrderedDict()
     for name,value in sections.items():
-        value=normalize_separators(name,value)
+        value=normalize_spacing(name,normalize_separators(name,value))
         if name in PUNCTUATION_EXEMPT_SECTIONS:
             fixed[name]=value
             continue

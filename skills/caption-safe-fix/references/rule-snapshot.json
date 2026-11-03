@@ -1,7 +1,8 @@
 {
   "policy_version": 9,
-  "skill_version": "1.2.0",
+  "skill_version": "1.3.0",
   "punctuation_policy": "basic-punctuation-v1",
+  "spacing_policy": "hyphen-spacing-v1",
   "time_layout_policy": "time-range-paragraph-v1",
   "auto_fix": [
     "existing_numbered_tag_format",
@@ -30,6 +31,12 @@
       "bundled_sha256": "e34951d4a7e28102ad2a4a92a0747ee7ad00ca03a03c482d50c3a3feaafd9076"
     },
     {
+      "source": "captionqa/caption_qa_spacing.py",
+      "source_sha256": "4919c6eb40eeaf05ecf52ca6671e965a7a4c44bf313bfc9efd0e780772f8362f",
+      "bundled": "scripts/_spacing.py",
+      "bundled_sha256": "10b651f6815caf9310ad8e0a380b444db2a6a76e0eeec5da91ab0dfd48f93d63"
+    },
+    {
       "source": "captionqa/caption_qa_width.py",
       "source_sha256": "5c939ed6d3d9fa136e48001d390be39417eaf2c3242899a1ceb2c7c80c981197",
       "bundled": "scripts/caption_qa_width.py",
@@ -37,9 +44,9 @@
     },
     {
       "source": "captionqa/caption_qa_labels.py",
-      "source_sha256": "31a56fc6631f45c38860f8256cffc563cad684e600a6f16fee31bf198ba8cea0",
+      "source_sha256": "ea0cc69905c6bf64875ce225cfa95ef94e2252cf4cd568db5c6ab523048e686f",
       "bundled": "scripts/_labels.py",
-      "bundled_sha256": "3c2c35eebdd18aab886d701293f49b5c74b3749089fda00e77e6ffa329dd5830"
+      "bundled_sha256": "f303f008cf422b45eddd069e19fb7e64ad38e3a84888cc77ecb88ea9bc1d1e6b"
     }
   ],
   "source_sha256": {

@@ -15,11 +15,12 @@ from uuid import uuid4
 import _schema as schema
 import _rules as rules
 from _time_layout import normalize as normalize_time_layout
+from _spacing import normalize as normalize_spacing
 from _labels import normalize_separators
 from _audio import audio_spans
 import caption_qa_width as width
 
-VERSION='1.2.0'
+VERSION='1.3.0'
 SEMANTIC_LABELS={'疑似病句','疑似错别字','标点问题','主体引用','内容符号'}
 LABELS={'duplicate_defined_subjects':'主体重复定义','missing_subjects':'自然指令漏写已定义主体',
         'ghost_subjects':'引用未定义主体','skipped_numbering':'主体编号不连续',
@@ -65,7 +66,7 @@ outside_transform=width.outside_literals
 
 
 def safe_body(name,text):
-    text=normalize_separators(name,text)
+    text=normalize_spacing(name,normalize_separators(name,text))
     if name in rules.PUNCTUATION_EXEMPT_SECTIONS:return text
     text=width.normalize_basic_width(name,text)
     if name in rules.LLM_TARGET_SECTIONS:text=outside_transform(text,rules._normalize_markup_tags)
