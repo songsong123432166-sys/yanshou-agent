@@ -51,7 +51,7 @@ Excel输出在没有作者设备的可选渲染组件时自动使用已安装的
 
 ## 包含的Skill与测试
 
-`skills/deepseek-caption-review` 是WorkBuddy单段Caption自查与返修技能，独立使用说明在其目录内。`skills/caption-safe-fix` 是范围更窄的独立安全格式修正技能。两者边界以各自SKILL.md为准，不因同包而扩大权限。
+包内仅包含 `skills/deepseek-caption-review`，用于WorkBuddy单段Caption自查与返修，独立使用说明在其目录内。使用范围以其SKILL.md为准。
 
 开发同学可运行 `.venv/bin/python -m unittest discover -q`。包内测试仅使用合成样例，不能证明真实语义误报率。真实API调用和WorkBuddy实机安装需使用者自行试验；本包不含作者密钥、业务原表、上传历史、审核记录或虚拟环境。
 

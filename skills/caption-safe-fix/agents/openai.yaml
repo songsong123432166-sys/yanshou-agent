@@ -1,4 +1,0 @@
-interface:
-  display_name: "Caption 安全格式修正"
-  short_description: "修正 Caption 编号标签、基础标点、完整标签分隔符和时间段分段，保留原文与其他列"
-  default_prompt: "使用 $caption-safe-fix 修正我提供的 Caption 数据，只改允许的格式问题，输出修正副本并列出需人工复核的题目 ID 和错误项。"
