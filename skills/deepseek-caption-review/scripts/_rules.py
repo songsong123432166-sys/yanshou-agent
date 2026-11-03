@@ -110,10 +110,10 @@ def _source_static_rules(sections: Mapping[str, str]) -> list[Issue]:
         errors.append(_issue("static", "主体", "、".join(coverage["defined_subjects"]),
                              "skipped_numbering", "主体编号不连续（应从 1 开始）；请人工核对编号映射"))
     for name, value in sections.items():
-        from _time_layout import operations as time_layout_operations
-        for op in time_layout_operations(name,value):
+        from _time_layout import findings as time_layout_findings, REASON as TIME_LAYOUT_REASON
+        for op in time_layout_findings(name,value):
             errors.append(_issue('static',name,op['heading'],'time_range_break',
-                '新时间段另起一段，段间空一行；段内第几秒不强制换段。',True))
+                TIME_LAYOUT_REASON,True))
         if name in MULTI_LABEL_SECTIONS:
             from _labels import pipe_width_operations
             if pipe_width_operations(name,value):

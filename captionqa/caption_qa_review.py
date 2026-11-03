@@ -258,9 +258,9 @@ def _review_records(latest, *, caption_column, id_column, source_sha256):
             locations = (_locations(sections[name], normalized.get(name,""), snippet)
                          or _locations(sections[name], cleaned.get(name, ""), snippet))
             if kind=='time_range_break' and item.get('source')=='static':
-                from captionqa.caption_qa_time_layout import operations as time_layout_operations
-                locations=[(op['end'],op['end']+len(op['heading']))
-                           for op in time_layout_operations(name,sections[name]) if op['heading']==snippet]
+                from captionqa.caption_qa_time_layout import findings as time_layout_findings
+                locations=[(op['anchor'],op['anchor']+len(op['heading']))
+                           for op in time_layout_findings(name,sections[name]) if op['heading']==snippet]
             key = (name, kind, snippet)
             if item.get("source") == "static" and len(locations) > 1:
                 locations = [locations[min(occurrence[key], len(locations) - 1)]]
@@ -282,7 +282,7 @@ def _review_records(latest, *, caption_column, id_column, source_sha256):
             if kind=='time_range_break' and item.get('source')=='static':
                 from captionqa.caption_qa_time_layout import operations as time_layout_operations
                 issue['operations']=[op for op in time_layout_operations(name,sections[name])
-                                     if any(op['end']==a for a,b in locations)]
+                                     if any(op['anchor']==a for a,b in locations)]
             if kind=='pipe_width' and item.get('source')=='static':
                 from captionqa.caption_qa_labels import pipe_width_operations
                 issue['operations']=pipe_width_operations(name,sections[name])

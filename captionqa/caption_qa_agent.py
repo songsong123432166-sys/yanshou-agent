@@ -60,6 +60,7 @@ LLM_SYSTEM_PROMPT = """
 5. 绝对豁免项（严禁报错）：
    - 已停用：属性冲突（含跨字段属性冲突）、衍字/叠词冗余、重复标签前缀。这三项不检查、不提示、不转人工、不修复；不能换成“语法病句”“错别字”“标点”再次报告。原有叠词和重复前缀保持原样，不得删除任何重复字词或重复标签。长袍/裙摆、颜色/服饰等属性不一致不属于本次质检范围。
    - 严禁挑刺 `## 自然指令` 中的时间戳逻辑（如“0-4秒...第0秒...”完全合规，保持原样）。
+   - 时间段排版由本地规则处理：段内切镜至少3次时标注“镜头多次切换”，“第X秒”不强制换行；不足3次时“第X秒”另起一行。推拉摇移不算切镜；不要把已规范的分段、标记当作语病，不改秒数、不推断不存在的切镜。
    - 严禁因为 `<场景N>` 或 `## 画面元素` 未在后文出现而报错（只要求已定义的 `<主体N>` 在自然指令中出现）。
 6. 修订边界与差异化回传：
    - 新版字段优先，旧别名仅用于补充缺少或留空的新版字段。字段优先级由程序处理，不能把旧字段内容混入已选定的新版字段。
@@ -463,10 +464,10 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
         errors.append(_issue("static", "主体", "、".join(coverage["defined_subjects"]),
                              "skipped_numbering", "主体编号不连续（应从 1 开始）；请人工核对编号映射"))
     for name, value in sections.items():
-        from captionqa.caption_qa_time_layout import operations as time_layout_operations
-        for op in time_layout_operations(name,value):
+        from captionqa.caption_qa_time_layout import findings as time_layout_findings, REASON as TIME_LAYOUT_REASON
+        for op in time_layout_findings(name,value):
             errors.append(_issue('static',name,op['heading'],'time_range_break',
-                '新时间段另起一段，段间空一行；段内第几秒不强制换段。',True))
+                TIME_LAYOUT_REASON,True))
         if name in MULTI_LABEL_SECTIONS:
             from captionqa.caption_qa_labels import pipe_width_operations
             if pipe_width_operations(name,value):

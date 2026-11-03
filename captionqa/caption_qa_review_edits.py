@@ -27,10 +27,10 @@ def resolve_field(document, field, issues):
             if issue.get('separator_policy')==LEGACY_POLICY and issue['operations']!=legacy_separator_operations(field['name'],old):
                 raise ValueError('旧标签分隔符修改与原文不一致，已停止回填。')
             if issue['kind']=='time_range_break':
-                from captionqa.caption_qa_time_layout import operations as time_layout_operations
-                allowed=time_layout_operations(field['name'],old)
+                from captionqa.caption_qa_time_layout import operations as time_layout_operations, legacy_operations
+                allowed=time_layout_operations(field['name'],old)+legacy_operations(field['name'],old)
                 if not issue['operations'] or any(op not in allowed for op in issue['operations']):
-                    raise ValueError('时间段分段只能调整自然指令中的分隔空白，已停止回填。')
+                    raise ValueError('时间段排版修改不符合切镜与换行规则，已停止回填。')
             if issue.get('separator_policy')==SEPARATOR_POLICY:
                 from captionqa.caption_qa_labels import separator_operations
                 if issue['operations']!=separator_operations(field['name'],old):
@@ -67,8 +67,8 @@ def resolve_field(document, field, issues):
                 raise ValueError("指定修改与原文或音频保护范围不一致，已停止回填。")
             new = new[:op["start"]] + op["new"] + new[op["end"]:]
         if any(i['kind']=='time_range_break' for i in selected):
-            from captionqa.caption_qa_time_layout import normalize as normalize_time_layout
-            new=normalize_time_layout(field['name'],new)
+            from captionqa.caption_qa_time_layout import normalize_selected
+            new=normalize_selected(field['name'],old,new,[op for i in selected if i['kind']=='time_range_break' for op in i['operations']])
         mode = ('approved_candidate' if any(i.get('requires_confirmation') for i in selected) else
                 'automatic_rule' if selected and all(i['decision'] == 'auto' for i in selected) else 'approved_rule')
 

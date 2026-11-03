@@ -1,9 +1,9 @@
 {
-  "skill_version": "1.4.0",
+  "skill_version": "1.5.0",
   "pipe_policy": "fullwidth-pipe-v1",
   "punctuation_policy": "basic-punctuation-v1",
   "spacing_policy": "hyphen-spacing-v1",
-  "time_layout_policy": "time-range-paragraph-v1",
+  "time_layout_policy": "time-cut-layout-v2",
   "field_schema_version": 8,
   "auto_fix_policy_version": 9,
   "scope": "One structured Caption; no network calls, tables, keys or source overwrite.",
@@ -16,9 +16,9 @@
     },
     {
       "source": "captionqa/caption_qa_agent.py",
-      "source_sha256": "b1aae064746ad909e72680cae33c337df4cdf5d422cbae07db21a2669737768b",
+      "source_sha256": "9af15aaa51398e48738cf6bd8c84e09ded2e8eb3742cbb529d957ff53627d52f",
       "bundled": "scripts/_rules.py",
-      "bundled_sha256": "7837ca341ef6230e36d4735700d6f10c68fdbc5c43e6daefa5004e87fe2e920e"
+      "bundled_sha256": "9cce8f5e5d6e97ff3589767f68ac221a982c777b42e12e6d7ce6068ec6c4ce0d"
     },
     {
       "source": "captionqa/caption_qa_review_audio.py",
@@ -34,9 +34,9 @@
     },
     {
       "source": "captionqa/caption_qa_time_layout.py",
-      "source_sha256": "9f0317c93461fcfb18ca35f855b7f6cd80b8610fd4617222d805aa346078f851",
+      "source_sha256": "2b5efd89fe98028ca9e80e9f3d9dcd7cccb1c2aaa68866ed3559cc6cba815a15",
       "bundled": "scripts/_time_layout.py",
-      "bundled_sha256": "e34951d4a7e28102ad2a4a92a0747ee7ad00ca03a03c482d50c3a3feaafd9076"
+      "bundled_sha256": "0b5256f6e00100b1f0de038feca8147380672973c2f4db6a48dc61074358764d"
     },
     {
       "source": "captionqa/caption_qa_spacing.py",
