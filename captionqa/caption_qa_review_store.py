@@ -73,7 +73,9 @@ class ReviewStore:
             separators = enrich_separator_fixes(document)
             from captionqa.caption_qa_time_layout import enrich_time_layout, POLICY as TIME_POLICY
             layout=enrich_time_layout(document,source_records(document,self.input_source))
-            if added or separators or contextual or layout:
+            from captionqa.caption_qa_labels import enrich_pipe_width, PIPE_POLICY
+            pipes=enrich_pipe_width(document,source_records(document,self.input_source))
+            if added or separators or contextual or layout or pipes:
                 document['revision'] += 1
                 if contextual:
                     document['events'].append({'revision':document['revision'],
@@ -91,6 +93,10 @@ class ReviewStore:
                     issue=next(i for i in document['issues'] if i['issue_id']==issue_id)
                     document['events'].append({'revision':document['revision'],'decision':issue['decision'],
                                               'issue_id':issue_id,'policy':TIME_POLICY})
+                for issue_id in pipes:
+                    issue=next(i for i in document['issues'] if i['issue_id']==issue_id)
+                    document['events'].append({'revision':document['revision'],'decision':issue['decision'],
+                                              'issue_id':issue_id,'policy':PIPE_POLICY})
                 self.save(document)
         else:
             from captionqa.caption_qa_id_list import detect_id_column

@@ -18,7 +18,7 @@ from captionqa.caption_qa_review_state import automatic_issue_ids, human_review_
 from captionqa.caption_qa_review_edits import approved_changes
 from captionqa.caption_qa_review_store import atomic_json, validate_binding
 
-LABELS = {"time_range_break":"时间段分段", "missing_punctuation": "缺少段尾标点", "bare_tags": "编号标签格式",
+LABELS = {"pipe_width":"标签竖线全角化", "time_range_break":"时间段分段", "missing_punctuation": "缺少段尾标点", "bare_tags": "编号标签格式",
           "missing_subjects": "自然指令漏写已定义主体", "ghost_subjects": "引用未定义主体",
           "duplicate_defined_subjects": "主体重复定义", "skipped_numbering": "主体编号不连续",
           "symbol_format": "内容符号不成对", "label_separator": "多标签拼接符不规范",
@@ -283,6 +283,10 @@ def _review_records(latest, *, caption_column, id_column, source_sha256):
                 from captionqa.caption_qa_time_layout import operations as time_layout_operations
                 issue['operations']=[op for op in time_layout_operations(name,sections[name])
                                      if any(op['end']==a for a,b in locations)]
+            if kind=='pipe_width' and item.get('source')=='static':
+                from captionqa.caption_qa_labels import pipe_width_operations
+                issue['operations']=pipe_width_operations(name,sections[name])
+                issue['locations']=[(op['start'],op['end']) for op in issue['operations']]
             if isinstance(item.get('replacement'),str):
                 issue['replacement']=item['replacement']
             if width_enabled and kind=='symbol_width' and item.get('source')=='static' and item.get('width_operations'):
@@ -356,6 +360,8 @@ def _review_records(latest, *, caption_column, id_column, source_sha256):
         document["fields"].extend(field for field in field_map.values() if field["issue_ids"])
     from captionqa.caption_qa_time_layout import enrich_time_layout
     enrich_time_layout(document,latest)
+    from captionqa.caption_qa_labels import enrich_pipe_width
+    enrich_pipe_width(document,latest)
     from captionqa.caption_qa_candidates import enrich_candidates
     enrich_candidates(document)
     from captionqa.caption_qa_labels import enrich_separator_fixes
@@ -373,10 +379,10 @@ def _approve_automatic(document):
     for field in document['fields']:
         selected = [i for i in document['issues'] if i['field_id'] == field['field_id'] and i['decision'] == 'auto']
         operations = sorted({(o['start'], o['end'], o['old'], o['new']) for i in selected
-                             if i['kind']!='time_range_break' for o in i['operations']})
+                             if i['kind'] not in {'time_range_break','pipe_width'} for o in i['operations']})
         if any(right[0] < left[1] or right[0] == left[0] for left, right in zip(operations, operations[1:])):
             for issue in selected:
-                if issue['kind']!='time_range_break':issue['decision'] = 'pending'
+                if issue['kind'] not in {'time_range_break','pipe_width'}:issue['decision'] = 'pending'
     for issue in document['issues']:
         if issue['decision'] == 'auto':
             document['events'].append({'revision': 0, 'issue_id': issue['issue_id'], 'decision': 'auto',

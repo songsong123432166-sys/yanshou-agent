@@ -15,8 +15,8 @@ import _schema as schema
 
 
 def caption(instruction='<主体1>转头，面向镜头。'):
-    fields={'任务类型':'人物参考|场景参考','提示':'生成一个人物转头的视频。','similarity_label':'yes',
-        'video_similarity_tag':'实体 - 相同|场景 - 相同','audio_similarity_tag':'无',
+    fields={'任务类型':'人物参考｜场景参考','提示':'生成一个人物转头的视频。','similarity_label':'yes',
+        'video_similarity_tag':'实体 - 相同｜场景 - 相同','audio_similarity_tag':'无',
         '输入描述':'<图片1>：一名男子。','基调':'写实。','场景':'<场景1>：室内看台。',
         '主体':'<主体1>：<图片1>中的男子，身穿白色衬衫。','画面元素':'无。',
         '总结':'<主体1>在<场景1>中转头。','自然指令':instruction}
@@ -62,12 +62,12 @@ class LocalTests(unittest.TestCase):
         self.assertFalse(any(i.get('original')=='Hello.' for i in report['findings']))
 
     def test_recognized_metadata_separators_are_safe_but_prose_and_empty_labels_are_not(self):
-        raw=caption().replace('实体 - 相同|场景 - 相同','实体/IP-相同，镜头/运镜-相同')
+        raw=caption().replace('实体 - 相同｜场景 - 相同','实体/IP-相同，镜头/运镜-相同')
         fixed=app.check(raw)['caption'];self.assertIn('实体/IP - 相同｜镜头/运镜 - 相同',fixed)
         for value in ['音色-相同，环境中传来风声','音色-相同||音乐-相同']:
             raw=caption().replace('## audio_similarity_tag\n无','## audio_similarity_tag\n'+value)
             report=app.check(raw)
-            self.assertIn(value.replace('-',' - '),report['caption']);self.assertTrue(report['findings'])
+            self.assertIn(value.replace('-',' - ').replace('|','｜'),report['caption']);self.assertTrue(report['findings'])
 
     def test_voice_definition_colon_is_formatting_while_description_words_stay_protected(self):
         raw=caption().replace('<主体1>：<图片1>中的男子，身穿白色衬衫。','＜主体1＞:画外青年男声,音色清朗.')

@@ -164,7 +164,7 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
         report = qa.CaptionQAAgent(client=client).check(raw)
         self.assertEqual(set(request_sections(client.calls[0])), TARGET_SECTIONS|{'画面元素'})
         self.assertEqual(json.loads(client.calls[0]['messages'][1]['content'])['read_only_sections'],['画面元素'])
-        self.assertEqual(report["revised_caption"], raw)
+        self.assertEqual(report["revised_caption"], raw.replace("|","｜"))
         self.assertEqual(set(qa.LLM_TARGET_SECTIONS), TARGET_SECTIONS)
 
     def test_llm_receives_deterministically_fixed_sections_before_semantics(self) -> None:
@@ -187,11 +187,11 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
         raw = metadata + GOOD
         client = FakeSyncClient(semantic_reply())
         report = qa.CaptionQAAgent(client=client).check(raw)
-        expected = raw.replace("原样  \r\n", "原样。  \r\n")
+        expected = raw.replace("原样  \r\n", "原样。  \r\n").replace("|","｜")
         self.assertEqual(report["revised_caption"], expected)
         self.assertTrue(set(request_sections(client.calls[0])).issubset(TARGET_SECTIONS|{'画面元素'}))
         self.assertEqual(report["status"], "AUTO_FIXED")
-        self.assertEqual([i["issue_type"] for i in report["issues"]], ["missing_punctuation"])
+        self.assertEqual([i["issue_type"] for i in report["issues"]], ["pipe_width", "pipe_width", "missing_punctuation"])
 
     def test_metadata_format_errors_are_not_leaked_through_request_errors(self) -> None:
         raw = "## 画面元素\n<画面元素1>：右上角【台标】。\n## similarity_label\nPRIVATE_META\n" + GOOD

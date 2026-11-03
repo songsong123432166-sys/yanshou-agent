@@ -22,8 +22,8 @@ class PunctuationPolicyTests(unittest.TestCase):
                     "task_type", "subtask_type", "similarity_tag", "视听标签"}
         self.assertEqual(set(qa.PUNCTUATION_EXEMPT_SECTIONS), expected)
         sections = {name: "  主体9|视频1  \r\n" for name in expected}
-        self.assertEqual(qa.run_static_rules(sections), [])
-        self.assertEqual(qa.apply_static_fixes(sections), sections)
+        self.assertTrue(all(i['issue_type']=='pipe_width' for i in qa.run_static_rules(sections)))
+        self.assertEqual(qa.apply_static_fixes(sections), {k:v if k=='similarity_label' else v.replace('|','｜') for k,v in sections.items()})
 
     def test_every_other_field_requires_terminal_punctuation(self):
         for name in ("提示", "输入描述", "基调", "场景", "主体", "总结", "自然指令", "画面元素", "自定义字段", "other_label"):

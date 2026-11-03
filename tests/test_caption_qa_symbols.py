@@ -99,21 +99,21 @@ class SymbolPolicyTests(unittest.TestCase):
         self.assertIn('<主体2>、<主体3>', entries[0][1])
         self.assertEqual(entries[0][1].count('自然指令漏写已定义主体'), 1)
 
-    def test_task_and_audiovisual_labels_accept_both_vertical_bars_and_keep_internal_slashes(self):
+    def test_task_and_audiovisual_labels_output_fullwidth_bars_and_keep_internal_slashes(self):
         for field in qa.MULTI_LABEL_SECTIONS:
             for value in ('人物参考|动态参考', '实体/IP｜动态', '实体/IP - 相同｜镜头/运镜 - 同类不同个', '人物参考'):
                 with self.subTest(field=field, value=value):
                     sections = {field: value}
-                    self.assertEqual(qa.run_static_rules(sections), [])
-                    self.assertEqual(qa.apply_static_fixes(sections), sections)
+                    self.assertEqual([i["issue_type"] for i in qa.run_static_rules(sections)], ["pipe_width"] if "|" in value else [])
+                    self.assertEqual(qa.apply_static_fixes(sections), {field:value.replace("|","｜")})
 
     def test_complete_task_labels_get_separator_fixes_but_empty_labels_stay_manual(self):
         for value in ('人物参考、动态参考', '人物参考，动态参考', '人物参考\n动态参考', '人物参考||动态参考'):
             with self.subTest(value=value):
                 sections = {'任务类型': value}
-                self.assertEqual([i['issue_type'] for i in qa.run_static_rules(sections)], ['label_separator'])
+                self.assertEqual([i['issue_type'] for i in qa.run_static_rules(sections)], (['pipe_width','label_separator'] if '||' in value else ['label_separator']))
                 if '||' in value:
-                    self.assertEqual(qa.apply_static_fixes(sections),sections)
+                    self.assertEqual(qa.apply_static_fixes(sections),{'任务类型':value.replace("|","｜")})
                 else:
                     self.assertEqual(qa.apply_static_fixes(sections),{'任务类型':'人物参考｜动态参考'})
 

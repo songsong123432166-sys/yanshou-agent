@@ -211,14 +211,18 @@ def _source_static_rules(sections: Mapping[str, str]) -> list[Issue]:
             errors.append(_issue('static',name,op['heading'],'time_range_break',
                 '新时间段另起一段，段间空一行；段内第几秒不强制换段。',True))
         if name in MULTI_LABEL_SECTIONS:
+            from _labels import pipe_width_operations
+            if pipe_width_operations(name,value):
+                errors.append(_issue('static',name,value.strip(),'pipe_width',
+                    '标签分隔符统一使用全角竖线 ｜，标签文字保留。',True))
             label_lines = [line.strip() for line in value.splitlines() if line.strip()]
             embedded_header = re.search(r"(?m)^[ \t]*#{2,6}[ \t]*\S", value)
             if not embedded_header and (len(label_lines) > 1 or re.search(r"[、，,；;]|^[ \t]*[|｜]|[|｜][ \t]*$|[|｜][ \t]*[|｜]", value.strip())):
                 empty_label = re.search(r"^[|｜]|[|｜]$|[|｜][ \t]*[|｜]", value.strip())
                 message = ("多标签列表存在空标签：请检查首尾多余竖线或连续竖线，不自动改写标签" if empty_label else
-                           "多个标签应使用 | 或 ｜ 拼接，不用顿号、逗号、分号或换行；实体/IP、镜头/运镜内部的 / 保留，请人工核对")
+                           "多个标签应使用全角 ｜ 拼接，不用顿号、逗号、分号或换行；实体/IP、镜头/运镜内部的 / 保留，请人工核对")
                 safe=bool(separator_operations(name,value))
-                if safe:message='标签完整，仅将分隔符规范为竖线；标签内容与顺序保留。'
+                if safe:message='标签完整，仅将分隔符规范为全角竖线 ｜；标签内容与顺序保留。'
                 errors.append(_issue("static", name, value.strip(), "label_separator",message,safe))
         if name in LLM_TARGET_SECTIONS:
             view = mask_literals(value)

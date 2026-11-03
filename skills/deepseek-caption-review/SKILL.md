@@ -5,7 +5,7 @@ display_name_en: Single Caption Review and Repair
 description: 检查用户粘贴的一段结构化视频 Caption，按固定规则安全修正格式，给出待确认的语义建议，并仅应用用户明确批准的改稿。
 description_zh: 一次检查一段 Caption；安全格式直接修正，病句和主体引用等建议确认后应用，保留原文与修订记录。
 description_en: Review one structured video Caption, apply deterministic safe fixes, and apply semantic suggestions only after explicit human confirmation.
-version: 1.3.0
+version: 1.4.0
 author: Caption QA 项目
 examples_zh:
   - 检查并安全修正下面这一段 Caption。
@@ -27,7 +27,7 @@ examples_zh:
 
 自然指令中的 `0-2秒`、`2-8秒`等主时间段各自成段，段间空一行，脚本默认自动修正；段内 `第2秒`、`第4秒`不强制换段。不改秒数，不拆台词、音乐/音效或画面文字里的时间。
 
-时间段和标签中的 `-` 两侧各一个半角空格，例如 `0 - 2秒`、`实体 - 相同`；英文连字符、负数、网址和受保护原文保持。`｜` / `|` 仍都合法，本条不改竖线空格。
+时间段和标签中的 `-` 两侧各一个半角空格，例如 `0 - 2秒`、`实体 - 相同`；英文连字符、负数、网址和受保护原文保持。标签分隔符统一用全角 `｜`，半角 `|` 自动转换；不要求给竖线两侧加空格。
 
 ## 执行一次检查
 

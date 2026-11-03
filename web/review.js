@@ -264,7 +264,7 @@ function renderReviewPanel(job) {
     editor.append(area);
     const save=element('button','secondary-button review-decision','确认本字段最终稿');
     const updateSave=()=>{
-      const saved=Object.hasOwn(documentData.field_edits,field.field_id)&&area.value===documentData.field_edits[field.field_id];
+      const saved=Object.hasOwn(documentData.field_edits,field.field_id)&&area.value===resolution.editor_text;
       save.classList.toggle('is-selected',saved);save.setAttribute('aria-pressed',String(saved));
       save.textContent=saved?'✓ 最终稿已保存':view.busy&&view.saving?.field_id===field.field_id?'正在保存…':'确认本字段最终稿';
       save.disabled=view.busy||!field.sample_id||saved;

@@ -20,9 +20,9 @@ from _labels import normalize_separators
 from _audio import audio_spans
 import caption_qa_width as width
 
-VERSION='1.3.0'
+VERSION='1.4.0'
 SEMANTIC_LABELS={'疑似病句','疑似错别字','标点问题','主体引用','内容符号'}
-LABELS={'duplicate_defined_subjects':'主体重复定义','missing_subjects':'自然指令漏写已定义主体',
+LABELS={'pipe_width':'标签竖线全角化','duplicate_defined_subjects':'主体重复定义','missing_subjects':'自然指令漏写已定义主体',
         'ghost_subjects':'引用未定义主体','skipped_numbering':'主体编号不连续',
         'symbol_format':'内容符号不成对','label_separator':'多标签拼接符不规范',
         'time_range_break':'时间段分段','bare_tags':'编号标签待核对','missing_punctuation':'段尾标点待核对'}

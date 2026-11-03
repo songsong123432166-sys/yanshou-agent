@@ -39,11 +39,11 @@ class LabelTests(unittest.TestCase):
                     self.assertEqual(len(operations),1)
                     self.assertEqual(original[operations[0]['start']:operations[0]['end']],delimiter)
 
-    def test_legal_pipe_width_and_internal_slashes_stay_unchanged(self):
+    def test_ascii_pipes_become_fullwidth_while_internal_slashes_stay_unchanged(self):
         for text in ('音色-相同|环境音-同类不同个','音色-相同｜环境音-同类不同个'):
-            self.assertEqual(normalize_separators('audio_similarity_tag',text),text)
+            self.assertEqual(normalize_separators('audio_similarity_tag',text),text.replace('|','｜'))
         self.assertEqual(normalize_separators('video_similarity_tag','实体/IP-相同|场景-相同，镜头/运镜-相同'),
-                         '实体/IP-相同|场景-相同|镜头/运镜-相同')
+                         '实体/IP-相同｜场景-相同｜镜头/运镜-相同')
 
     def test_uncertain_or_empty_labels_and_audio_prose_never_auto_change(self):
         for text in ('音色-相同，','，音乐-相同','音色-相同||环境音-相同','音色-相同，\n环境音-相同',

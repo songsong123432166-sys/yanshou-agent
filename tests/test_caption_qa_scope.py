@@ -68,10 +68,10 @@ class CaptionScopeTests(unittest.TestCase):
         raw = metadata + GOOD.replace("## ", "##").replace("\n", "\r\n")
         client = FakeAsyncClient(semantic_reply())
         report = asyncio.run(qa.CaptionQAAgent(async_client=client, max_retries=0).acheck_single_caption(raw))
-        self.assertEqual(report["status"], "PASS")
+        self.assertEqual(report["status"], "AUTO_FIXED")
         self.assertTrue(report["semantic_qa_performed"])
-        self.assertEqual(report["revised_caption"], raw)
-        self.assertEqual(report["issues"], [])
+        self.assertEqual(report["revised_caption"], raw.replace("|","｜"))
+        self.assertEqual([i["issue_type"] for i in report["issues"]], ["pipe_width"])
         self.assertNotIn("similarity_label", request_sections(client.calls[0]))
 
     def test_old_scope_checkpoint_cannot_resume_as_current_result(self):
