@@ -5,7 +5,7 @@ import re
 
 from captionqa.caption_qa_metadata import TITLES, ALIASES as TAG_ALIASES, normalize as translate_tags
 
-VERSION=9
+VERSION=10
 HEADER_PREFIX='## '
 FIELDS=('任务类型','提示','similarity_label','video_similarity_tag','audio_similarity_tag',
         '输入描述','基调','场景','主体','画面元素','总结','自然指令')
@@ -139,8 +139,13 @@ def is_legacy_reference(text):
     return any(block['field']=='_task' and block['text'].strip()=='参考' for block in parse(text)['blocks'])
 
 
+def metadata_value(name,text):
+    from captionqa.caption_qa_labels import normalize_separators
+    return normalize_separators(name,translate_tags(name,text))
+
+
 def render(fields):
-    text='\n\n'.join(HEADER_PREFIX+TITLES.get(name,name)+'\n'+translate_tags(name,fields.get(name,'')).strip() for name in FIELDS)+'\n'
+    text='\n\n'.join(HEADER_PREFIX+TITLES.get(name,name)+'\n'+metadata_value(name,fields.get(name,'')).strip() for name in FIELDS)+'\n'
     return space_fields(text)
 
 
@@ -179,7 +184,7 @@ def local_caption(text,parsed,task):
         if header['inline'] is not None:body=header['inline']+newline+body
         if header['alias'] in {'brief_captions','subject'}:body=_body(field,body)
         title=header['line'] if header['canonical'] else HEADER_PREFIX+TITLES.get(field,field)+(newline if header['line'].endswith(('\r','\n')) or body else '')
-        sections[field]=title+translate_tags(field,body)
+        sections[field]=title+metadata_value(field,body)
     if '任务类型' not in sections:
         sections['任务类型']=HEADER_PREFIX+'任务类型'+newline+task+newline+newline
     chunks=[]
@@ -221,7 +226,7 @@ def task_value(parsed,mapping=None):
         raise ValueError('旧任务类型尚无新版映射：'+key+'；请在设置中填写任务标签映射。')
     labels=target if isinstance(target,list) else re.split('[|｜]',target)
     if not labels or any(not isinstance(s,str) or not s.strip() for s in labels):raise ValueError('任务标签映射须为非空标签或标签列表。')
-    return '｜'.join(s.strip() for s in labels)
+    return '|'.join(s.strip() for s in labels)
 
 
 def is_generation_request(text):
@@ -348,7 +353,7 @@ async def normalize(text,*,client=None,model='',task_mapping=None):
         chunks=[];cursor=0
         for i,h in enumerate(parsed['headers']):
             end=parsed['headers'][i+1]['start'] if i+1<len(parsed['headers']) else len(text)
-            chunks.extend((text[cursor:h['end']],translate_tags(h['field'],text[h['end']:end])))
+            chunks.extend((text[cursor:h['end']],metadata_value(h['field'],text[h['end']:end])))
             cursor=end
         spaced=space_fields(''.join(chunks))
         if spaced!=base['original']:

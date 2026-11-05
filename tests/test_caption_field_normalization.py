@@ -79,7 +79,7 @@ class SchemaTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_old_titles_with_new_child_labels_and_misplaced_prompt_are_repaired_locally(self):
         prompt='以<图片1>的机甲UI界面为基础，去除外层大框UI，生成一段包含多视角镜头切换的科幻动画视频。'
-        expected=STANDARD.replace('人物参考','人物参考｜视觉风格参考').replace('## 提示\n\n','## 提示\n'+prompt+'\n\n')
+        expected=STANDARD.replace('人物参考','人物参考|视觉风格参考').replace('## 提示\n\n','## 提示\n'+prompt+'\n\n')
         original=expected.replace('## 任务类型','## task_type').replace('## 提示','## subtask_type').replace(
             '## 视觉标签','## similarity_tag').replace('## 输入描述','## brief_captions').replace('## 主体','## subject')
         client=PlanClient();result=await normalize(original,client=client)
@@ -302,7 +302,7 @@ class JobTests(unittest.TestCase):
 
     def test_misplaced_prompt_job_writes_fixed_and_missing_id_reports_without_api(self):
         prompt='以<图片1>为参考，生成一段科幻动画视频。'
-        expected=STANDARD.replace('人物参考','人物参考｜视觉风格参考').replace('## 提示\n\n','## 提示\n'+prompt+'\n\n')
+        expected=STANDARD.replace('人物参考','人物参考|视觉风格参考').replace('## 提示\n\n','## 提示\n'+prompt+'\n\n')
         raw=expected.replace('## 任务类型','## task_type').replace('## 提示','## subtask_type')
         job,data=self.create([{'id':'cmdcc4c1d5','caption':raw,'备注':'不改','机标caption':OLD}])
         self.assertEqual(job['status'],'done');self.assertEqual(job['counts'],{'converted':1})

@@ -22,9 +22,9 @@ class AutoFixWhitelistTests(unittest.TestCase):
     def test_repeated_subject_prefix_is_format_fix_not_duplicate_definition(self):
         raw = GOOD.replace("<主体1>：", "<主体1>：<主体1>：<主体1>：")
         report = qa.CaptionQAAgent(dry_run=True).check(raw)
-        self.assertEqual(report["status"], "PASS")
+        self.assertEqual(report["status"], "NEED_HUMAN_REVIEW")
         self.assertEqual(report["revised_caption"], raw)
-        self.assertEqual(report["remaining_static_errors"], [])
+        self.assertEqual([i["issue_type"] for i in report["remaining_static_errors"]], ["duplicate_defined_subjects"])
 
     def test_true_repeated_definitions_remain_manual(self):
         raw = GOOD.replace("## 总结", "<主体1>：身穿黑袍。\n## 总结")
@@ -167,7 +167,7 @@ class AutoFixWhitelistTests(unittest.TestCase):
         self.assertEqual(len(qa.AUTO_LLM_ISSUE_TYPES), 3)
 
     def test_completed_static_fixes_are_not_sent_as_pending_errors(self):
-        raw = GOOD.replace("<主体1>：", "<主体1>：<主体1>：").replace("<主体1>奔跑。", "主体1奔跑")
+        raw = GOOD.replace("<主体1>奔跑。", "主体1奔跑")
         client = FakeSyncClient(semantic_reply())
         report = qa.CaptionQAAgent(client=client).check(raw)
         payload = json.loads(client.calls[0]["messages"][1]["content"])

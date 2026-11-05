@@ -101,21 +101,21 @@ class SymbolPolicyTests(unittest.TestCase):
 
     def test_task_and_audiovisual_labels_output_fullwidth_bars_and_keep_internal_slashes(self):
         for field in qa.MULTI_LABEL_SECTIONS:
-            for value in ('人物参考|动态参考', '实体/IP｜动态', '实体/IP - 相同｜镜头/运镜 - 同类不同个', '人物参考'):
+            for value,expected,kinds in [('人物参考|动态参考','人物参考|动态参考',[]), ('实体/IP｜动态','实体/IP|动态',['pipe_width']), ('实体/IP - 相同｜镜头/运镜 - 同类不同个','实体/IP-相同|镜头/运镜-同类不同个',['pipe_width']), ('人物参考','人物参考',[])]:
                 with self.subTest(field=field, value=value):
                     sections = {field: value}
-                    self.assertEqual([i["issue_type"] for i in qa.run_static_rules(sections)], ["pipe_width"] if "|" in value else [])
-                    self.assertEqual(qa.apply_static_fixes(sections), {field:value.replace("|","｜")})
+                    self.assertEqual([i["issue_type"] for i in qa.run_static_rules(sections)], ((["tag_language"] if field in {"视听标签","similarity_tag","video_similarity_tag"} and value.startswith("实体/IP -") else [])+kinds))
+                    self.assertEqual(qa.apply_static_fixes(sections), {field:expected.replace("实体/IP-相同","实体/ip-相同") if field in {"视听标签","similarity_tag","video_similarity_tag"} else expected})
 
     def test_complete_task_labels_get_separator_fixes_but_empty_labels_stay_manual(self):
         for value in ('人物参考、动态参考', '人物参考，动态参考', '人物参考\n动态参考', '人物参考||动态参考'):
             with self.subTest(value=value):
                 sections = {'任务类型': value}
-                self.assertEqual([i['issue_type'] for i in qa.run_static_rules(sections)], (['pipe_width','label_separator'] if '||' in value else ['label_separator']))
+                self.assertEqual([i['issue_type'] for i in qa.run_static_rules(sections)], ['label_separator'])
                 if '||' in value:
-                    self.assertEqual(qa.apply_static_fixes(sections),{'任务类型':value.replace("|","｜")})
+                    self.assertEqual(qa.apply_static_fixes(sections),{'任务类型':value})
                 else:
-                    self.assertEqual(qa.apply_static_fixes(sections),{'任务类型':'人物参考｜动态参考'})
+                    self.assertEqual(qa.apply_static_fixes(sections),{'任务类型':'人物参考|动态参考'})
 
     def test_audio_reference_tags_are_supported_without_changing_spoken_words(self):
         raw = self.caption('与音频1相同的背景音乐，< 音频2 >中同款音效，演唱道{音频3}。')

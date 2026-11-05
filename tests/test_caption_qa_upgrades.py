@@ -120,7 +120,7 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
         self.assertEqual(len(duplicates), 1)
         self.assertEqual(duplicates[0]["original_snippet"], "<主体1>")
         self.assertEqual(duplicates[0]["suggestion"],
-            "【主体编号重复定义】在 ## 主体 中重复定义了 <主体1>，请核对是否应顺延编号")
+            "【主体编号重复】在 ## 主体 中 <主体1> 出现 2 次（定义和描述内引用均计入）；请人工核对，不自动删除或重新编号。")
         report = qa.CaptionQAAgent(dry_run=True).check(text)
         self.assertEqual(report["status"], "NEED_HUMAN_REVIEW")
         self.assertTrue(report["need_human_review"])
@@ -164,7 +164,7 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
         report = qa.CaptionQAAgent(client=client).check(raw)
         self.assertEqual(set(request_sections(client.calls[0])), TARGET_SECTIONS|{'画面元素'})
         self.assertEqual(json.loads(client.calls[0]['messages'][1]['content'])['read_only_sections'],['画面元素'])
-        self.assertEqual(report["revised_caption"], raw.replace("|","｜").replace("视频1 ｜ 主体7","视频1｜主体7"))
+        self.assertEqual(report["revised_caption"], raw.replace("｜","|").replace("实体/IP - 相同","实体/ip-相同"))
         self.assertEqual(set(qa.LLM_TARGET_SECTIONS), TARGET_SECTIONS)
 
     def test_llm_receives_deterministically_fixed_sections_before_semantics(self) -> None:
@@ -173,7 +173,7 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
         report = qa.CaptionQAAgent(client=client).check(raw)
         self.assertEqual(request_sections(client.calls[0])["场景"].strip(),
                          "<场景1>：<场景1>：石质台阶。")
-        self.assertEqual(report["status"], "AUTO_FIXED")
+        self.assertEqual(report["status"], "NEED_HUMAN_REVIEW")
         self.assertIn("<场景1>：<场景1>：石质台阶。", report["revised_caption"])
 
     def test_exempt_metadata_is_preserved_and_frame_elements_only_gain_period(self) -> None:
@@ -187,11 +187,11 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
         raw = metadata + GOOD
         client = FakeSyncClient(semantic_reply())
         report = qa.CaptionQAAgent(client=client).check(raw)
-        expected = raw.replace("原样  \r\n", "原样。  \r\n").replace("|","｜").replace("视频1 ｜ 主体7","视频1｜主体7")
+        expected = raw.replace("原样  \r\n", "原样。  \r\n").replace("｜","|").replace("视频1 | 主体7","视频1|主体7")
         self.assertEqual(report["revised_caption"], expected)
         self.assertTrue(set(request_sections(client.calls[0])).issubset(TARGET_SECTIONS|{'画面元素'}))
         self.assertEqual(report["status"], "AUTO_FIXED")
-        self.assertEqual([i["issue_type"] for i in report["issues"]], ["pipe_width", "pipe_width", "missing_punctuation"])
+        self.assertEqual([i["issue_type"] for i in report["issues"]], ["pipe_width", "missing_punctuation"])
 
     def test_metadata_format_errors_are_not_leaked_through_request_errors(self) -> None:
         raw = "## 画面元素\n<画面元素1>：右上角【台标】。\n## 参考关系标签\nPRIVATE_META\n" + GOOD
@@ -354,7 +354,7 @@ class AsyncSingleCaptionUpgradeTests(unittest.IsolatedAsyncioTestCase):
             corrected_sections={"主体": "<主体1>：身穿白袍，露出眼睛。"}))
         report = await qa.CaptionQAAgent(async_client=client, retry_delay=0).acheck_single_caption(raw)
         self.assertEqual(request_sections(client.calls[0])["场景"].strip(), "<场景1>：<场景1>：山洞。")
-        self.assertEqual(report["status"], "AUTO_FIXED")
+        self.assertEqual(report["status"], "NEED_HUMAN_REVIEW")
         self.assertIn("<主体1>：身穿白袍，露出眼睛。", report["revised_caption"])
         self.assertIn("<场景1>：<场景1>：山洞。", report["revised_caption"])
 

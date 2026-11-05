@@ -76,10 +76,10 @@ class AcceptanceTests(unittest.TestCase):
     def test_duplicate_prefix_and_punctuation_are_repaired(self) -> None:
         text = GOOD + "## 场景\n<场景1>：<场景1>：<场景1>：山洞\n\n## 输入描述\n<图片1>：黑板\n<视频1>：蜡烛\n## 画面元素\n无\n"
         report = qa.CaptionQAAgent(dry_run=True).check(text)
-        self.assertEqual(report["status"], "AUTO_FIXED")
+        self.assertEqual(report["status"], "NEED_HUMAN_REVIEW")
         self.assertIn("<场景1>：<场景1>：<场景1>：山洞。", report["revised_caption"])
         self.assertIn("<图片1>：黑板。\n<视频1>：蜡烛。", report["revised_caption"])
-        self.assertEqual(report["remaining_static_errors"], [])
+        self.assertEqual([i["issue_type"] for i in report["remaining_static_errors"]], ["duplicate_scene_numbers"])
         self.assertFalse(report["semantic_qa_performed"])
 
     def test_pass_requires_clean_checks(self) -> None:

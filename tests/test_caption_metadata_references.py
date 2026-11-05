@@ -24,8 +24,8 @@ class MetadataTests(unittest.TestCase):
         result = SafeAutoFixAgent(dry_run=True).check(GOOD+TAGS)
         text = result['revised_caption']
         self.assertIn('## 参考关系标签\n是', text)
-        self.assertIn('## 视觉标签\n实体/IP - 相同｜特效 - 相同', text)
-        self.assertIn('## 听觉标签\n音效 - 同类不同个', text)
+        self.assertIn('## 视觉标签\n实体/ip-相同|特效-相同', text)
+        self.assertIn('## 听觉标签\n音效-同类不同个', text)
         self.assertEqual(result['status'], 'AUTO_FIXED')
         self.assertFalse(result['need_human_review'])
         for line in text.splitlines():

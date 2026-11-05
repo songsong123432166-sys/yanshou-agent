@@ -13,7 +13,7 @@ from tests.test_caption_qa_upgrades import GOOD, FakeAsyncClient, semantic_reply
 
 
 class BaselineTests(unittest.TestCase):
-    def test_references_in_subject_descriptions_are_not_definitions(self):
+    def test_descriptive_references_count_for_duplicates_but_do_not_declare_subjects(self):
         for description in (
             "剑斜背在<主体1>身后。", "音色同<主体1>。",
             "站在<主体1>的船上。", "剑背在主体1身后。", "看着<主体1>，靠近<主体1>。",
@@ -22,7 +22,7 @@ class BaselineTests(unittest.TestCase):
                 sections = {"主体": "<主体1>：男子。\n<主体2>：" + description,
                             "自然指令": "<主体1>看向<主体2>。"}
                 self.assertEqual(qa.subject_coverage(sections)["defined_subjects"], ["<主体1>", "<主体2>"])
-                self.assertFalse(any(i["issue_type"] == "duplicate_defined_subjects"
+                self.assertTrue(any(i["issue_type"] == "duplicate_defined_subjects"
                                      for i in qa.run_static_rules(sections)))
 
     def test_real_repeated_declarations_are_still_reported(self):
@@ -31,9 +31,9 @@ class BaselineTests(unittest.TestCase):
                 errors = qa.run_static_rules({"主体": text, "自然指令": "<主体1>走动。"})
                 self.assertEqual([i["issue_type"] for i in errors], ["duplicate_defined_subjects"])
 
-    def test_disabled_duplicate_prefix_is_not_changed_or_counted_twice(self):
+    def test_repeated_number_prefix_is_reported_but_never_automatically_deleted(self):
         sections = {"主体": "<主体1>：<主体1>：男子。", "自然指令": "<主体1>走动。"}
-        self.assertEqual(qa.run_static_rules(sections), [])
+        self.assertEqual([i["issue_type"] for i in qa.run_static_rules(sections)], ["duplicate_defined_subjects"])
         self.assertEqual(qa.apply_static_fixes(sections), sections)
 
     def test_reference_alone_does_not_declare_a_subject(self):

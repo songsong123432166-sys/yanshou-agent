@@ -22,7 +22,7 @@ MULTI_LABEL_SECTIONS = frozenset({"任务类型", "video_similarity_tag", "audio
 
 PUNCTUATION_EXEMPT_SECTIONS = MULTI_LABEL_SECTIONS | {"similarity_label"}
 
-AUTO_FIX_POLICY_VERSION = 9
+AUTO_FIX_POLICY_VERSION = 10
 
 DISABLED_FINDING_RE = re.compile(
     r"属性冲突|跨字段.{0,8}(?:冲突|不一致)|(?:服饰|服装|颜色|材质|方位|属性).{0,16}(?:冲突|不一致|矛盾)"
@@ -93,11 +93,16 @@ def _source_static_rules(sections: Mapping[str, str]) -> list[Issue]:
     """纯 Python 静态预检；不猜测自然语言语义。每个非空行作为可检查段落。"""
     errors: list[Issue] = []
     coverage = subject_coverage(sections)
-    subject_counts = Counter(_subject_definitions(sections.get("主体", "")))
-    for tag, count in subject_counts.items():
-        if count > 1:
-            errors.append(_issue("static", "主体", tag, "duplicate_defined_subjects",
-                f"【主体编号重复定义】在 ## 主体 中重复定义了 {tag}，请核对是否应顺延编号"))
+    for field,pattern,kind in (
+        ('主体',r'<主体\d+>','duplicate_defined_subjects'),
+        ('场景',r'<场景\d+>','duplicate_scene_numbers'),
+        ('输入描述',r'<(?:图片|视频|音频)\d+>','duplicate_input_numbers')):
+        counts=Counter(re.findall(pattern,_normalize_tags(sections.get(field,''))))
+        for tag,count in counts.items():
+            if count>1:
+                errors.append(_issue('static',field,tag,kind,
+                    f'【{field}编号重复】在 ## {field} 中 {tag} 出现 {count} 次（定义和描述内引用均计入）；'
+                    '请人工核对，不自动删除或重新编号。'))
     for tag in coverage["missing_subjects"]:
         errors.append(_issue("static", "自然指令", tag, "missing_subjects",
             f"【重点：自然指令漏写已定义主体】在 ## 主体 中已定义 {tag}，但 ## 自然指令 未引用该标签；"
@@ -125,16 +130,16 @@ def _source_static_rules(sections: Mapping[str, str]) -> list[Issue]:
             if pipe_width_operations(name,value) and not (separator_operations(name,value) and
                     (len([line for line in value.splitlines() if line.strip()])>1 or re.search(r'[、，,；;]',value))):
                 errors.append(_issue('static',name,value.strip(),'pipe_width',
-                    '标签用全角竖线｜连接，竖线两侧不留空格；标签内 - 两侧各一个空格，标签文字保留。',True))
+                    '标签用半角竖线 | 连接，竖线及标签内 - 两侧不留空格。',True))
             label_view=translate_tags(name,value)
             label_lines = [line.strip() for line in label_view.splitlines() if line.strip()]
             embedded_header = re.search(r"(?m)^[ \t]*#{2,6}[ \t]*\S", value)
             if not embedded_header and (len(label_lines) > 1 or re.search(r"[、，,；;]|^[ \t]*[|｜]|[|｜][ \t]*$|[|｜][ \t]*[|｜]", label_view.strip())):
                 empty_label = re.search(r"^[|｜]|[|｜]$|[|｜][ \t]*[|｜]", value.strip())
                 message = ("多标签列表存在空标签：请检查首尾多余竖线或连续竖线，不自动改写标签" if empty_label else
-                           "多个标签应使用全角 ｜ 拼接，不用顿号、逗号、分号或换行；实体/IP、镜头/运镜内部的 / 保留，请人工核对")
+                           "多个标签应使用半角 | 拼接，不用顿号、逗号、分号或换行；实体/ip、镜头/运镜内部的 / 保留，请人工核对")
                 safe=bool(separator_operations(name,value))
-                if safe:message='标签完整，仅将分隔符规范为全角竖线 ｜；标签内容与顺序保留。'
+                if safe:message='标签完整，仅将分隔符规范为半角竖线 |；标签内容与顺序保留。'
                 errors.append(_issue("static", name, value.strip(), "label_separator",message,safe))
         if name in LLM_TARGET_SECTIONS:
             view = mask_literals(value)

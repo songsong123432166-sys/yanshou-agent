@@ -73,7 +73,7 @@ def _pending_content_notes(row):
     """Only unresolved findings belong in the user-facing explanation."""
     report = row.get("qa_report", {})
     labels = {"missing_subjects": "自然指令漏写已定义主体", "ghost_subjects": "引用未定义主体",
-              "duplicate_defined_subjects": "主体重号", "skipped_numbering": "主体编号断层",
+              "duplicate_defined_subjects": "主体编号重复", "duplicate_scene_numbers":"场景编号重复", "duplicate_input_numbers":"输入素材编号重复", "skipped_numbering": "主体编号断层",
               "bare_tags": "裸标签缺少 <>", "missing_punctuation": "句末标点缺失",
               "symbol_format": "内容符号不成对", "symbol_width": "全角/半角符号",
               "label_separator": "多标签拼接符不规范",

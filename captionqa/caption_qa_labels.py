@@ -2,9 +2,10 @@
 import re
 from captionqa.caption_field_schema import TASK_LABELS
 
-POLICY='label-separator-v2'
+POLICY='label-separator-v3'
+PREVIOUS_POLICY='label-separator-v2'
 LEGACY_POLICY='label-separator-v1'
-PIPE_POLICY='label-delimiter-format-v2'
+PIPE_POLICY='label-delimiter-format-v3'
 FIELDS={'任务类型','task_type','subtask_type','video_similarity_tag','similarity_tag',
         'audio_similarity_tag','视听标签'}
 SEPARATOR=re.compile(r'\r\n|[\r\n|｜、，,；;]')
@@ -13,7 +14,7 @@ AUDIO=r'音色|音乐|旋律|音效|环境音|台词(?:内容)?|人声|声音'
 RELATION=r'相同|同个|同类不同个|不同'
 
 
-def _separator_operations(field, text, legacy=False):
+def _separator_operations(field, text, legacy=False, previous=False):
     """Only replace separators; keep label spelling, order and all other text."""
     if field not in FIELDS or not isinstance(text,str) or not text.strip():return []
     leading=len(text)-len(text.lstrip());body=text.strip()
@@ -32,15 +33,18 @@ def _separator_operations(field, text, legacy=False):
         dimensions=AUDIO if field=='audio_similarity_tag' else VISUAL if field in {'video_similarity_tag','similarity_tag'} else VISUAL+'|'+AUDIO
         return bool(re.fullmatch(r'(?:'+dimensions+r')\s*-\s*(?:'+RELATION+r')',value,re.I))
     if not all(valid(label) for label in labels):return []
-    target=next((m[0] for m in matches if m[0] in {'|','｜'}),'｜') if legacy else '｜'
+    target=next((m[0] for m in matches if m[0] in {'|','｜'}),'｜') if legacy else '｜' if previous else '|'
     return [{'start':leading+m.start(),'end':leading+m.end(),'old':m[0],'new':target}
-            for m in matches if m[0] not in ({'|','｜'} if legacy else {'｜'})]
+            for m in matches if m[0] not in ({'|','｜'} if legacy else {target})]
 
 
 def separator_operations(field,text):return _separator_operations(field,text)
 
 
 def legacy_separator_operations(field,text):return _separator_operations(field,text,legacy=True)
+
+
+def previous_separator_operations(field,text):return _separator_operations(field,text,previous=True)
 
 
 def legacy_pipe_width_operations(field,text):
@@ -53,21 +57,31 @@ def legacy_pipe_width_operations(field,text):
             if not any(a<=m.start()<b for a,b in protected)]
 
 
-def pipe_width_operations(field,text):
+def _pipe_width_operations(field,text,previous=False):
     if field not in FIELDS or not isinstance(text,str):return []
     if re.search(r'(?m)^[ \t]*#{2,6}[ \t]*\S',text):return []
     from captionqa.caption_qa_width import protected_spans, TECH
-    from captionqa.caption_qa_spacing import operations as spacing_operations
+    from captionqa.caption_qa_spacing import operations, previous_operations
     protected=protected_spans(text)+[m.span() for m in TECH.finditer(text)]
     protected += [m.span() for m in re.finditer(r'“[^”]*”|「[^」]*」|"[^"\n]*"',text)]
-    edits=[{'start':m.start(),'end':m.end(),'old':m[0],'new':'｜'}
+    target='｜' if previous else '|'
+    edits=[{'start':m.start(),'end':m.end(),'old':m[0],'new':target}
         for m in re.finditer(r'[ \t\u3000]*[|｜][ \t\u3000]*',text)
-        if m[0]!='｜' and not any(m.start()<b and m.end()>a for a,b in protected)]
-    return sorted(edits+spacing_operations(field,text),key=lambda op:(op['start'],op['end']))
+        if m[0]!=target and not any(m.start()<b and m.end()>a for a,b in protected)]
+    return sorted(edits+(previous_operations if previous else operations)(field,text),key=lambda op:(op['start'],op['end']))
+
+
+def pipe_width_operations(field,text):return _pipe_width_operations(field,text)
+
+
+def previous_pipe_width_operations(field,text):return _pipe_width_operations(field,text,previous=True)
 
 
 def normalize_pipe_width(field,text):
     for op in reversed(pipe_width_operations(field,text)):
+        text=text[:op['start']]+op['new']+text[op['end']:]
+    from captionqa.caption_qa_metadata import case_operations
+    for op in reversed(case_operations(field,text)):
         text=text[:op['start']]+op['new']+text[op['end']:]
     return text
 
@@ -95,7 +109,7 @@ def enrich_separator_fixes(document):
         if any(a['start']==b['start'] or a['start']<b['end'] and b['start']<a['end'] for a in operations for b in selected):continue
         if issue.get('separator_policy')==POLICY and issue.get('operations')==operations:continue
         issue.update(operations=operations,can_auto_fix=True,separator_policy=POLICY,
-                     requires_confirmation=False,reason='标签完整，仅将分隔符规范为全角竖线 ｜；标签内容与顺序保留。')
+                     requires_confirmation=False,reason='标签完整，仅将分隔符规范为半角竖线 |；标签内容与顺序保留。')
         if automatic and issue.get('sample_id'):
             issue['decision']='auto'
         changed.append(issue['issue_id'])
@@ -129,7 +143,7 @@ def enrich_pipe_width(document,records):
             decision='auto' if document['workflow_version'] in AUTO_WORKFLOWS and field['sample_id'] else 'pending'
             issue={'issue_id':key,'field_id':field['field_id'],'sample_id':field['sample_id'],'row_index':index,
                 'field':name,'kind':'pipe_width','label':'标签分隔符格式','snippet':original.strip(),
-                'excerpts':[original.strip()],'subject':'','reason':'标签用全角竖线｜连接，竖线两侧不留空格；标签内 - 两侧各一个空格，标签文字保留。',
+                'excerpts':[original.strip()],'subject':'','reason':'标签用半角竖线 | 连接，竖线及标签内 - 两侧不留空格。',
                 'decision':decision,'operations':ops,'locations':[[o['start'],o['end']] for o in ops],
                 'can_auto_fix':True,'origin':'static','source_issue_index':None}
             document['issues'].append(issue);field['issue_ids'].append(key);changed.append(key)

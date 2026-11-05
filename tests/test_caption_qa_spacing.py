@@ -13,10 +13,10 @@ class SpacingTests(unittest.TestCase):
 
     def test_metadata_separator_spacing_does_not_change_slashes_or_pipe_width(self):
         text='实体/IP-相同|镜头/运镜 -相同｜编辑-改'
-        self.assertEqual(normalize('video_similarity_tag',text),'实体/IP - 相同|镜头/运镜 - 相同｜编辑 - 改')
-        self.assertEqual(normalize('任务类型','参考-严格编辑-改'),'参考 - 严格编辑 - 改')
-        self.assertEqual(normalize('video_similarity_tag','实体-T-shirt｜物品-GPT-4'),'实体 - T-shirt｜物品 - GPT-4')
-        self.assertEqual(normalize_separators('任务类型','参考 - 严格编辑 - 改，人物参考'),'参考 - 严格编辑 - 改｜人物参考')
+        self.assertEqual(normalize('video_similarity_tag',text),'实体/IP-相同|镜头/运镜-相同｜编辑-改')
+        self.assertEqual(normalize('任务类型','参考-严格编辑-改'),'参考-严格编辑-改')
+        self.assertEqual(normalize('video_similarity_tag','实体-T-shirt｜物品-GPT-4'),'实体-T-shirt｜物品-GPT-4')
+        self.assertEqual(normalize_separators('任务类型','参考 - 严格编辑 - 改，人物参考'),'参考-严格编辑-改|人物参考')
 
     def test_audio_screen_quotes_english_negative_numbers_and_urls_are_not_changed(self):
         for text in ['<主体1>说道{0-2秒，go-go}。','（背景音乐0-2秒，继续）。','<0-2秒，传来脚步声>。',

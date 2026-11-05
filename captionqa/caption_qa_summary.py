@@ -10,7 +10,9 @@ CHECKS = (
     ("grammar", "病句 / 语句不通顺", True),
     ("missing_subjects", "自然指令漏写已定义主体", False),
     ("implicit_subjects", "隐式漏挂主体标签", True),
-    ("duplicate_subjects", "主体重号", False),
+    ("duplicate_subjects", "主体编号重复", False),
+    ("duplicate_scenes", "场景编号重复", False),
+    ("duplicate_inputs", "输入素材编号重复", False),
     ("ghost_subjects", "引用未定义主体", False),
     ("numbering", "主体编号断层", False),
 )
@@ -21,7 +23,7 @@ ISSUE_CHECK = {
     "symbol_format": "symbols", "symbol_width": "symbols", "label_separator": "symbols", "pipe_width":"symbols", "内容符号不规范": "semantic_symbols",
     "无歧义错别字": "typos", "语法病句与语句不通顺": "grammar",
     "missing_subjects": "missing_subjects", "隐式漏挂主体标签": "implicit_subjects",
-    "duplicate_defined_subjects": "duplicate_subjects", "ghost_subjects": "ghost_subjects",
+    "duplicate_defined_subjects": "duplicate_subjects", "duplicate_scene_numbers":"duplicate_scenes", "duplicate_input_numbers":"duplicate_inputs", "ghost_subjects": "ghost_subjects",
     "skipped_numbering": "numbering",
     # Historical combined types cannot be accurately split into current checks.
     "错别字与衍字": "legacy", "标点与标签格式": "legacy",

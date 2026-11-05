@@ -7,9 +7,9 @@ ALIASES = {value: key for key, value in TITLES.items()}
 ALIASES.update({'Similarity Label': 'similarity_label',
                 'Video Similarity Tag': 'video_similarity_tag',
                 'Audio Similarity Tag': 'audio_similarity_tag'})
-POLICY = 'chinese-tags-v2'
+POLICY = 'chinese-tags-v3'
 DIMENSIONS = {
-    'entity/ip': '实体/IP', 'entity': '实体', 'character': '人物', 'object': '物品',
+    'entity/ip': '实体/ip', 'entity': '实体', 'character': '人物', 'object': '物品',
     'scene': '场景', 'action': '动作', 'camera/motion': '镜头/运镜',
     'camera movement': '镜头/运镜', 'camera': '镜头/运镜', 'motion': '动态',
     'editing': '剪辑', 'plot': '剧情', 'layout': '布局', 'viewpoint': '视角',
@@ -25,7 +25,7 @@ _WORDS = '|'.join(re.escape(v).replace(r'\ ', r'[ \t]+') for v in sorted(_TOKENS
 TOKEN_RE = re.compile(r'(?<![\w/])(?:' + _WORDS + r')(?![\w/])', re.I)
 
 
-def operations(field, text):
+def _operations(field, text, previous=False):
     """Only translate complete tag atoms, never English prose or quoted text."""
     if re.search(r'(?m)^[ \t]*#{2,6}[ \t]*\S',text):return []
     if field in {'similarity_label','video_similarity_tag','audio_similarity_tag','similarity_tag','视听标签'} and re.fullmatch(r'\s*(yes|no)\s*',text,re.I):
@@ -50,11 +50,32 @@ def operations(field, text):
         for token in tokens:
             key = re.sub(r'\s+', ' ', token[0]).lower()
             edits.append({'start': match.start()+token.start(), 'end': match.start()+token.end(),
-                          'old': token[0], 'new': _TOKENS[key]})
+                          'old': token[0], 'new': '实体/IP' if previous and key=='entity/ip' else _TOKENS[key]})
         for dash in re.finditer('[–—]', piece):
             edits.append({'start': match.start()+dash.start(), 'end': match.start()+dash.end(),
                           'old': dash[0], 'new': '-'})
+    if not previous:
+        # Canonical case is a format change only within metadata label atoms.
+        edits.extend(case_operations(field,text))
     return sorted(edits, key=lambda op: (op['start'], op['end']))
+
+
+def operations(field,text):return _operations(field,text)
+
+
+def previous_operations(field,text):return _operations(field,text,previous=True)
+
+
+def case_operations(field,text):
+    if field not in {'video_similarity_tag','similarity_tag','视听标签'}:return []
+    if re.search(r'(?m)^[ \t]*#{2,6}[ \t]*\S',text):return []
+    result=[]
+    for piece in re.finditer(r'[^|｜;；\r\n]+',text):
+        match=re.fullmatch(r'\s*(实体/IP)\s*[-–—]\s*(?:相同|同个|同类不同个|不同)\s*',piece[0],re.I)
+        if match and match[1]!='实体/ip':
+            result.append({'start':piece.start()+match.start(1),'end':piece.start()+match.end(1),
+                           'old':match[1],'new':'实体/ip'})
+    return result
 
 
 def normalize(field, text):

@@ -1,31 +1,31 @@
 {
-  "skill_version": "1.8.0",
-  "pipe_policy": "label-delimiter-format-v2",
+  "skill_version": "1.9.0",
+  "pipe_policy": "label-delimiter-format-v3",
   "punctuation_policy": "basic-punctuation-v1",
-  "spacing_policy": "metadata-hyphen-spacing-v2",
+  "spacing_policy": "metadata-hyphen-spacing-v3",
   "time_layout_policy": "time-cut-boundary-v3",
-  "field_schema_version": 9,
-  "auto_fix_policy_version": 9,
+  "field_schema_version": 10,
+  "auto_fix_policy_version": 10,
   "scope": "One structured Caption; no network calls, tables, keys or source overwrite.",
   "schema_adapter": "latest-field-aliases-v1: tone, scene, visual_element, summary; known task/prompt ownership only",
   "shared_sources": [
     {
       "source": "captionqa/caption_qa_metadata.py",
-      "source_sha256": "4722aa2fa3c3b92d1a4f6198d8dec1cdf6ef84ebc0725079fb696a17b007dde3",
+      "source_sha256": "5f933f70126d1fbc568bc316e97a4d1483069e4e9b8c06d864cb4d83b037ed72",
       "bundled": "scripts/_metadata.py",
-      "bundled_sha256": "4722aa2fa3c3b92d1a4f6198d8dec1cdf6ef84ebc0725079fb696a17b007dde3"
+      "bundled_sha256": "5f933f70126d1fbc568bc316e97a4d1483069e4e9b8c06d864cb4d83b037ed72"
     },
     {
       "source": "captionqa/caption_field_schema.py",
-      "source_sha256": "b7aee812bc9778261dc62265a232dfebabccfaaa4b75ce7301215dc96385fcc6",
+      "source_sha256": "1dfd4b901517a5c136acb6ecb55ddb58d497581db31a0d380d01ecdcc3208fc5",
       "bundled": "scripts/_schema.py",
-      "bundled_sha256": "344a81464176ab64d7fb8b3fb72bc941ecbce38bad0e142600df4cf95239e182"
+      "bundled_sha256": "1ab9ce8fa7c6921cbf6cf7ed179d59481e0b2acce9d074ced79c60cdb2a053ec"
     },
     {
       "source": "captionqa/caption_qa_agent.py",
-      "source_sha256": "3a790e759899171894dd91b4645e0e437a2c81283b56f31a4c75f8781c607058",
+      "source_sha256": "f26958e2439c52c335456e28a8cf74e4185e4347f59e5d55879d2b80b5d7ab32",
       "bundled": "scripts/_rules.py",
-      "bundled_sha256": "6eee1019cebc8adc49b9a6b660797ba5ddf582e1589792b3b4e1b5ae20714ce7"
+      "bundled_sha256": "6d5a28e9233944175d6ffac9d0e28f8ea5c7dc93bf7bdc65d2480b998d78222d"
     },
     {
       "source": "captionqa/caption_qa_review_audio.py",
@@ -47,9 +47,9 @@
     },
     {
       "source": "captionqa/caption_qa_spacing.py",
-      "source_sha256": "f7fa874b957b5925d893d219a6f3bc8d725f1f70b5cb065afcb412af6b6aa8f7",
+      "source_sha256": "7fc04893633fa99a8a4399b16f173652359327b25af890bc961c764fa77d4627",
       "bundled": "scripts/_spacing.py",
-      "bundled_sha256": "50a620bf35d14658ba5f548588349d3e83f981379c5d973ebd8f39731ef5fe8c"
+      "bundled_sha256": "9ccbb61dca379d7f53daafc2a3e15c7bfaf464214b71e59f66ec9da8a9ce7efb"
     },
     {
       "source": "captionqa/caption_qa_width.py",
@@ -59,15 +59,15 @@
     },
     {
       "source": "captionqa/caption_qa_labels.py",
-      "source_sha256": "4e8bc10e56a68fecd8b088021c31964a7c53ce394104675f1563a43f772021c5",
+      "source_sha256": "395800642c611d28ce491d686a8e1ecff29505ba25c6aeefc2a45813c7ab7d20",
       "bundled": "scripts/_labels.py",
-      "bundled_sha256": "efdae7371539eba946fd77dfcc7962453625e5580d078658ba6163a88c395b1b"
+      "bundled_sha256": "b8119204c76fc6cb40d8d2757aef5ef41324b59d57b88524782ebabc9d90fa58"
     },
     {
       "source": "captionqa/caption_qa_symbols.py",
-      "source_sha256": "6175fca3c756dcff1e770e3757c8934d11808d168374a379e3dbe4320f253db3",
+      "source_sha256": "d3fc38246a085119390c16b09de1f4a06252202f60d330db861fea19ecb4bce3",
       "bundled": "scripts/caption_qa_symbols.py",
-      "bundled_sha256": "6175fca3c756dcff1e770e3757c8934d11808d168374a379e3dbe4320f253db3"
+      "bundled_sha256": "d3fc38246a085119390c16b09de1f4a06252202f60d330db861fea19ecb4bce3"
     }
   ]
 }

@@ -70,7 +70,7 @@ class CheckSummaryTests(unittest.TestCase):
     def test_taxonomy_and_no_semantic_checks_are_explicit(self):
         report = build_check_report([row(1, semantic=False)])
         self.assertEqual(report["semantic_checked"], 0)
-        self.assertEqual(len(report["items"]), 10)
+        self.assertEqual(len(report["items"]), 12)
         self.assertFalse(items(report)["symbols"]["requires_semantic"])
         self.assertTrue(items(report)["typos"]["requires_semantic"])
         self.assertFalse(items(report)["missing_subjects"]["requires_semantic"])

@@ -15,8 +15,8 @@ import _schema as schema
 
 
 def caption(instruction='<主体1>转头，面向镜头。'):
-    fields={'任务类型':'人物参考｜场景参考','提示':'生成一个人物转头的视频。','similarity_label':'是',
-        'video_similarity_tag':'实体 - 相同｜场景 - 相同','audio_similarity_tag':'无',
+    fields={'任务类型':'人物参考|场景参考','提示':'生成一个人物转头的视频。','similarity_label':'是',
+        'video_similarity_tag':'实体-相同|场景-相同','audio_similarity_tag':'无',
         '输入描述':'<图片1>：一名男子。','基调':'写实。','场景':'<场景1>：室内看台。',
         '主体':'<主体1>：<图片1>中的男子，身穿白色衬衫。','画面元素':'无。',
         '总结':'<主体1>在<场景1>中转头。','自然指令':instruction}
@@ -48,7 +48,7 @@ class LocalTests(unittest.TestCase):
         expected=caption()
         raw=expected.replace('## 任务类型','## subtask_type')
         self.assertEqual(app.check(raw)['caption'],expected)
-        unresolved=expected.replace('## 任务类型\n人物参考｜场景参考','## task_type\n参考')
+        unresolved=expected.replace('## 任务类型\n人物参考|场景参考','## task_type\n参考')
         report=app.check(unresolved,sample_id='needs-task-001')
         self.assertEqual(report['caption'],unresolved)
         self.assertEqual(report['sample_id'],'needs-task-001')
@@ -70,7 +70,7 @@ class LocalTests(unittest.TestCase):
 
     def test_user_delimiter_example_and_cut_boundaries_round_trip(self):
         text='0-8秒，<主体1>站立。第1秒，转头。第2秒，镜头切换。第3秒，挥手。'
-        raw=caption(text).replace('人物参考｜场景参考','人物参考 | 场景参考').replace('实体 - 相同｜场景 - 相同','实体-相同 | 场景-相同')
+        raw=caption(text).replace('人物参考|场景参考','人物参考 | 场景参考').replace('实体-相同|场景-相同','实体-相同 | 场景-相同')
         expected=caption(text.replace('。第2秒','。\n第2秒'))
         fixed=app.check(raw)['caption']
         self.assertEqual(fixed,expected)
@@ -122,12 +122,12 @@ class LocalTests(unittest.TestCase):
         self.assertFalse(any(i.get('original')=='Hello.' for i in report['findings']))
 
     def test_recognized_metadata_separators_are_safe_but_prose_and_empty_labels_are_not(self):
-        raw=caption().replace('实体 - 相同｜场景 - 相同','实体/IP-相同，镜头/运镜-相同')
-        fixed=app.check(raw)['caption'];self.assertIn('实体/IP - 相同｜镜头/运镜 - 相同',fixed)
+        raw=caption().replace('实体-相同|场景-相同','实体/IP-相同，镜头/运镜-相同')
+        fixed=app.check(raw)['caption'];self.assertIn('实体/ip-相同|镜头/运镜-相同',fixed)
         for value in ['音色-相同，环境中传来风声','音色-相同||音乐-相同']:
             raw=caption().replace('## 听觉标签\n无','## 听觉标签\n'+value)
             report=app.check(raw)
-            self.assertIn(value.replace('-',' - ').replace('|','｜'),report['caption']);self.assertTrue(report['findings'])
+            self.assertIn(value.replace('｜','|'),report['caption']);self.assertTrue(report['findings'])
 
     def test_voice_definition_colon_is_formatting_while_description_words_stay_protected(self):
         raw=caption().replace('<主体1>：<图片1>中的男子，身穿白色衬衫。','＜主体1＞:画外青年男声,音色清朗.')
@@ -238,9 +238,37 @@ class LocalTests(unittest.TestCase):
         self.assertEqual(report['caption'],raw)
         self.assertTrue(all(i.get('subject') for i in report['findings']))
 
-    def test_descriptive_subject_reference_is_not_a_duplicate_definition(self):
+    def test_descriptive_subject_reference_counts_as_repeated_number(self):
         raw=caption().replace('<图片1>中的男子，身穿白色衬衫。','音色同<主体1>，身穿白色衬衫。')
-        self.assertFalse(any(i['label']=='主体重复定义' for i in app.check(raw)['findings']))
+        self.assertTrue(any(i['label']=='主体编号重复' for i in app.check(raw)['findings']))
+
+    def test_scene_and_input_number_repetitions_are_reported_without_renumbering(self):
+        raw=caption().replace('<场景1>：室内看台。','<场景1>：室内看台。\n<场景1>：另一间房间。').replace(
+            '<图片1>：一名男子。','<图片1>：一名男子。\n<图片1>：一名女子。')
+        report=app.check(raw,sample_id='duplicates-001')
+        self.assertEqual(report['caption'],raw)
+        self.assertEqual({i['label'] for i in report['findings']},{'场景编号重复','输入素材编号重复'})
+        self.assertEqual(report['sample_id'],'duplicates-001')
+
+    def test_cross_field_reuse_and_separate_media_types_are_legal(self):
+        raw=caption('<主体1>走动，<主体1>停下，位于<场景1>，随后离开<场景1>。').replace(
+            '<图片1>：一名男子。','<图片1>：一名男子。\n<视频1>：一名男子。\n<音频1>：歌声。')
+        self.assertFalse(app.check(raw)['findings'])
+
+    def test_algorithm_delimiters_keep_chinese_headings_prompt_and_boolean(self):
+        raw=caption().replace('实体-相同|场景-相同','实体/IP - 相同 ｜ 场景 - 相同').replace(
+            '人物参考|场景参考','人物参考 ｜ 场景参考').replace('## 参考关系标签\n是','## 参考关系标签\nYes')
+        result=app.check(raw)['caption']
+        self.assertIn('实体/ip-相同|场景-相同',result)
+        self.assertIn('## 提示\n生成一个人物转头的视频。',result)
+        self.assertIn('## 参考关系标签\n是',result)
+        self.assertEqual(app.check(result)['caption'],result)
+
+    def test_time_range_blank_line_exception_is_applied(self):
+        raw=caption('0-2秒，<主体1>站立。2-8秒，<主体1>转头。第4秒，挥手。')
+        fixed=app.check(raw)['caption']
+        self.assertIn('0-2秒，<主体1>站立。\n\n2-8秒，<主体1>转头。第4秒，挥手。',fixed)
+        self.assertEqual(app.check(fixed)['caption'],fixed)
 
     def test_old_structure_unknown_header_or_duplicate_is_preserved(self):
         for raw in ['## task_type\n参考\n## natural_instruction\n生成视频。',

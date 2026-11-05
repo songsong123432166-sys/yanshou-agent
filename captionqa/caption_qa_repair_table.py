@@ -18,7 +18,7 @@ STATIC_LABELS = {
     "bare_tags": "标签格式不规范",
     "missing_subjects": "自然指令漏写已定义主体",
     "ghost_subjects": "引用未定义主体",
-    "duplicate_defined_subjects": "主体重复定义",
+    "duplicate_defined_subjects": "主体编号重复", "duplicate_scene_numbers":"场景编号重复", "duplicate_input_numbers":"输入素材编号重复",
     "skipped_numbering": "主体编号不连续",
     "symbol_format": "内容符号不成对",
     "symbol_width": "全角/半角符号",
@@ -60,6 +60,8 @@ def _issue_note(issue, sections):
     if kind in {"missing_subjects", "ghost_subjects", "duplicate_defined_subjects", "skipped_numbering"}:
         tags = list(dict.fromkeys(re.findall(r"<主体\d+>", snippet)))
         return f"{prefix}{STATIC_LABELS[kind]}：{'、'.join(tags) if tags else snippet}（请核对）"
+    if kind in {"duplicate_scene_numbers","duplicate_input_numbers"}:
+        return f"{prefix}{STATIC_LABELS[kind]}：{snippet}（请核对，不自动重新编号）"
     label = {"无歧义错别字": "疑似错别字", "语法病句与语句不通顺": "疑似病句 / 语句不通顺",
              "隐式漏挂主体标签": "疑似隐式漏挂主体标签"}.get(kind, kind or "疑似内容问题")
     return f"{prefix}{label}：{issue.get('suggestion') or '请人工核对'}"

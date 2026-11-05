@@ -21,7 +21,7 @@ from captionqa.caption_qa_review_store import atomic_json, validate_binding
 LABELS = {"tag_language":"英文标签转中文", "unknown_tag_language":"英文标签待确认",
           "reference_out_of_range":"参考素材引用越界", "reference_inventory":"参考素材数量待确认", "pipe_width":"标签分隔符格式", "time_range_break":"时间段分段", "missing_punctuation": "缺少段尾标点", "bare_tags": "编号标签格式",
           "missing_subjects": "自然指令漏写已定义主体", "ghost_subjects": "引用未定义主体",
-          "duplicate_defined_subjects": "主体重复定义", "skipped_numbering": "主体编号不连续",
+          "duplicate_defined_subjects": "主体编号重复", "duplicate_scene_numbers":"场景编号重复", "duplicate_input_numbers":"输入素材编号重复", "skipped_numbering": "主体编号不连续",
           "symbol_format": "内容符号不成对", "label_separator": "多标签拼接符不规范",
           "无歧义错别字": "疑似错别字", "标点符号硬伤": "疑似标点问题",
           "语法病句与语句不通顺": "疑似病句", "隐式漏挂主体标签": "疑似漏挂主体标签",

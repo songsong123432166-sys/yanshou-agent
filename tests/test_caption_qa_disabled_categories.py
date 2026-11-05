@@ -18,8 +18,8 @@ class DisabledCategoryTests(unittest.TestCase):
         for prefix in ("<主体1>：<主体1>：", "<主体1><主体1><主体1>："):
             raw = GOOD.replace("<主体1>：", prefix)
             report = qa.CaptionQAAgent(dry_run=True).check(raw)
-            self.assertEqual(report["status"], "PASS")
-            self.assertEqual(report["issues"], [])
+            self.assertEqual(report["status"], "NEED_HUMAN_REVIEW")
+            self.assertEqual([i["issue_type"] for i in report["issues"]], ["duplicate_defined_subjects"])
             self.assertEqual(report["revised_caption"], raw)
 
     def test_disabled_model_findings_and_generic_review_reason_are_ignored(self):
@@ -52,7 +52,7 @@ class DisabledCategoryTests(unittest.TestCase):
         raw = GOOD.replace("<主体1>：", "<主体1>：<主体1>：")
         report = self.check(raw, issues=[semantic_issue("主体", "<主体1>：<主体1>：", "最小修复", "标点与标签格式")],
             corrected_sections={"主体": "<主体1>：身穿白袍。"})
-        self.assertEqual(report["status"], "PASS")
+        self.assertEqual(report["status"], "NEED_HUMAN_REVIEW")
         self.assertEqual(report["revised_caption"], raw)
 
     def test_legacy_or_typo_label_cannot_enable_redundant_deletion(self):
@@ -84,9 +84,9 @@ class DisabledCategoryTests(unittest.TestCase):
     def test_bare_tags_and_periods_still_fix_without_collapsing_prefix(self):
         raw = GOOD.replace("<主体1>：身穿白袍。", "主体1：主体1：身穿白袍")
         report = qa.CaptionQAAgent(dry_run=True).check(raw)
-        self.assertEqual(report["status"], "AUTO_FIXED")
+        self.assertEqual(report["status"], "NEED_HUMAN_REVIEW")
         self.assertIn("<主体1>：<主体1>：身穿白袍。", report["revised_caption"])
-        self.assertEqual({i["issue_type"] for i in report["issues"]}, {"bare_tags", "missing_punctuation"})
+        self.assertEqual({i["issue_type"] for i in report["issues"]}, {"bare_tags", "missing_punctuation", "duplicate_defined_subjects"})
 
     def test_disabled_checks_do_not_hide_missing_instruction_subjects(self):
         raw = GOOD.replace("## 总结", "<主体2>：红衣女子。\n## 总结")

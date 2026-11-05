@@ -52,13 +52,13 @@ LLM_SYSTEM_PROMPT = """
    - 标点符号硬伤：只增加、删除或替换标点，保留全部正文和原有空白。例如“依次做出、痛苦挣扎的动作”删去多余顿号；“眉头紧锁、身穿白色长袍”改为逗号。需要人工确认（包括对白内部）且有唯一明确的标点改法时，可用可选 replacement 返回 original_snippet 对应的完整候选；can_auto_fix=false，不合入 corrected_sections。不得修改台词文字、数值、时间码、网址或内容包裹符。
    - 句末标点规则：只有“任务类型”“similarity_label”“video_similarity_tag”“audio_similarity_tag”四类字段及其已知导出别名 task_type、subtask_type、similarity_tag、视听标签豁免；其他字段（包括提示、基调、画面元素）的每个非空段落都需要句末标点。“无”也需要写为“无。”。保留已有句号、问号和叹号。仅当 }、”、）等闭合符位于段尾，后面没有其他文字且没有句末标点时，才补外层句号。例如段尾“说道{私は異世界に来たようだ。}”补为“说道{私は異世界に来たようだ。}。”。句中“说道{你好}，然后转身。”保持原样，禁止因为出现 } 就在其后补句号。段尾对白内部的句号不能替代外层句末标点，不得把此处必需的外层句号反判为冗余。
 3. 只提示/转人工的检查：
-   - 内容符号不规范：参考素材用 <图片X>/<视频X>/<音频X>，适用于输入描述、场景、主体、总结、自然指令；场景和主体的定义与调用用 <场景X>/<主体X>；画面文字、花字、水印台标用【文字内容】，适用于输入描述、画面元素、自然指令；人物台词、演唱和喊叫用 {台词/人声}，背景音乐特征及变化用中文（背景音乐…），动作/环境音效或声音起止状态用 <音效描述>，后三类适用于自然指令（细节）。这些范围用于按语境核对，不因其他字段出现合法符号就直接判错。允许音乐（）内嵌人声{}及编号标签；音效/环境音的 <> 内允许整段描述。任务类型和视听标签多个标签用 | 或 ｜ 拼接；实体/IP、镜头/运镜里的 / 是标签本身，不拆分。对白中的韩语/日语等外语、可见文字的原内容必须保留。根据明确语境发现包裹符号用错时 can_auto_fix=false；缺少可靠语境不能凭某个关键词断定类别，普通括号、引号和外语标点本身不是错误，不猜测缺失内容，不自动换包裹符号。
+   - 内容符号不规范：参考素材用 <图片X>/<视频X>/<音频X>，适用于输入描述、场景、主体、总结、自然指令；场景和主体的定义与调用用 <场景X>/<主体X>；画面文字、花字、水印台标用【文字内容】，适用于输入描述、画面元素、自然指令；人物台词、演唱和喊叫用 {台词/人声}，背景音乐特征及变化用中文（背景音乐…），动作/环境音效或声音起止状态用 <音效描述>，后三类适用于自然指令（细节）。这些范围用于按语境核对，不因其他字段出现合法符号就直接判错。允许音乐（）内嵌人声{}及编号标签；音效/环境音的 <> 内允许整段描述。任务类型和视听标签多个标签统一用半角 | 拼接，| 及标签内 - 两侧不加空格；实体/ip、镜头/运镜里的 / 是标签本身，不拆分。对白中的韩语/日语等外语、可见文字的原内容必须保留。根据明确语境发现包裹符号用错时 can_auto_fix=false；缺少可靠语境不能凭某个关键词断定类别，普通括号、引号和外语标点本身不是错误，不猜测缺失内容，不自动换包裹符号。
    - 语法病句与语句不通顺：成分残缺、句式杂糅、语序颠倒、中途暗换主语等需要增删或重排正文的改写，一律 can_auto_fix=false。有明确、完整且保留原意的局部改稿时，在可选 replacement 中返回 original_snippet 对应的完整替换文本，供人工核对并确认；不合入 corrected_sections。只给修改方向、没有可靠改稿时省略 replacement。
    - 隐式漏挂主体标签：自然语言指代可能漏挂标签时，仅提示并转人工，不自动补标签、替换指代或补动作。有明确指代依据时，可用 replacement 给出局部标签引用候选供人工确认；不得编造主体、动作或画面事实。
    - 【重点：自然指令漏写已定义主体】在“主体”中已定义的每个 <主体N>，必须在“自然指令”中明确引用；只在“总结”中出现不能替代自然指令的引用。“他/她/三人”等自然语言指代不能当作已引用标签。逐个列出自然指令缺失的主体编号，仅提示并转人工，禁止自动补标签或编造动作。
-   - 主体漏写、重号、幽灵主体、编号断层等保持人工复核。主体重号仅统计定义前缀；“剑斜背在<主体1>身后”“音色同<主体2>”是描述内引用，不是重复定义。缺失标签不在被检查字段原文中，不得伪造为该字段的 original_snippet；这类问题仅写在 human_review_reason 中，issues 可为空。
+   - 主体漏写、重号、幽灵主体、编号断层等保持人工复核。编号重复由本地规则分别统计主体字段的主体编号、场景字段的场景编号、输入描述的素材编号，定义和描述内引用都计入次数；总结和自然指令的反复引用不算重复。主体定义集合仍只取定义前缀，不把描述引用当作新定义。缺失标签不在被检查字段原文中，不得伪造为该字段的 original_snippet；这类问题仅写在 human_review_reason 中，issues 可为空。
 5. 绝对豁免项（严禁报错）：
-   - 已停用：属性冲突（含跨字段属性冲突）、衍字/叠词冗余、重复标签前缀。这三项不检查、不提示、不转人工、不修复；不能换成“语法病句”“错别字”“标点”再次报告。原有叠词和重复前缀保持原样，不得删除任何重复字词或重复标签。长袍/裙摆、颜色/服饰等属性不一致不属于本次质检范围。
+   - 已停用：属性冲突（含跨字段属性冲突）、衍字/叠词冗余、重复标签前缀。这三项不检查、不提示、不转人工、不修复；不能换成“语法病句”“错别字”“标点”再次报告。原有叠词和重复前缀保持原样，不得删除任何重复字词或重复标签；但主体、场景、输入描述内的同类编号重复仍按本地规则报告，不自动修复。长袍/裙摆、颜色/服饰等属性不一致不属于本次质检范围。
    - 严禁挑刺 `## 自然指令` 中的时间戳逻辑（如“0-4秒...第0秒...”完全合规，保持原样）。
    - 时间段排版由本地规则处理：段内切镜至少3次时标注“镜头多次切换”，“第X秒”不强制换行；不足3次时仅在明确切镜处换行，普通动作的“第X秒”不换行。推拉摇移不算切镜；不要把已规范的分段、标记当作语病，不改秒数、不推断不存在的切镜。
    - 严禁因为 `<场景N>` 或 `## 画面元素` 未在后文出现而报错（只要求已定义的 `<主体N>` 在自然指令中出现）。
@@ -125,8 +125,9 @@ CORE_SECTIONS = LLM_TARGET_SECTIONS  # 兼容旧调用方；实际顺序始终�
 MULTI_LABEL_SECTIONS = frozenset({"任务类型", "video_similarity_tag", "audio_similarity_tag", "视听标签",
                                   "task_type", "subtask_type", "similarity_tag"})
 PUNCTUATION_EXEMPT_SECTIONS = MULTI_LABEL_SECTIONS | {"similarity_label"}
-HARD_TYPES = {"missing_subjects", "ghost_subjects", "skipped_numbering", "duplicate_defined_subjects"}
-AUTO_FIX_POLICY_VERSION = 9
+HARD_TYPES = {"missing_subjects", "ghost_subjects", "skipped_numbering", "duplicate_defined_subjects",
+              "duplicate_scene_numbers", "duplicate_input_numbers"}
+AUTO_FIX_POLICY_VERSION = 10
 AUTO_LLM_ISSUE_TYPES = {"裸标签漏写 <>", "无歧义错别字", "标点符号硬伤"}
 DISABLED_LLM_ISSUE_TYPES = {"重复标签前缀", "衍字/叠词冗余", "跨字段属性冲突", "属性冲突", "duplicate_prefixes"}
 DISABLED_FINDING_RE = re.compile(
@@ -351,7 +352,7 @@ def _skipped_report() -> QAReport:
 
 def _qa_result_values(report: QAReport) -> dict[str, str]:
     labels = {"missing_subjects": "自然指令漏写已定义主体", "ghost_subjects": "幽灵主体",
-              "duplicate_defined_subjects": "主体重号", "skipped_numbering": "编号断层",
+              "duplicate_defined_subjects": "主体编号重复", "duplicate_scene_numbers":"场景编号重复", "duplicate_input_numbers":"输入素材编号重复", "skipped_numbering": "编号断层",
               "duplicate_prefixes": "重复标签", "bare_tags": "裸标签", "missing_punctuation": "句末标点缺失"}
     subjects = [f'{labels[i["issue_type"]]}: {i["original_snippet"]}' for i in report["static_errors"]
                 if i["issue_type"] in {"missing_subjects", "ghost_subjects", "duplicate_defined_subjects"}]
@@ -451,11 +452,16 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
     """纯 Python 静态预检；不猜测自然语言语义。每个非空行作为可检查段落。"""
     errors: list[Issue] = []
     coverage = subject_coverage(sections)
-    subject_counts = Counter(_subject_definitions(sections.get("主体", "")))
-    for tag, count in subject_counts.items():
-        if count > 1:
-            errors.append(_issue("static", "主体", tag, "duplicate_defined_subjects",
-                f"【主体编号重复定义】在 ## 主体 中重复定义了 {tag}，请核对是否应顺延编号"))
+    for field,pattern,kind in (
+        ('主体',r'<主体\d+>','duplicate_defined_subjects'),
+        ('场景',r'<场景\d+>','duplicate_scene_numbers'),
+        ('输入描述',r'<(?:图片|视频|音频)\d+>','duplicate_input_numbers')):
+        counts=Counter(re.findall(pattern,_normalize_tags(sections.get(field,''))))
+        for tag,count in counts.items():
+            if count>1:
+                errors.append(_issue('static',field,tag,kind,
+                    f'【{field}编号重复】在 ## {field} 中 {tag} 出现 {count} 次（定义和描述内引用均计入）；'
+                    '请人工核对，不自动删除或重新编号。'))
     for tag in coverage["missing_subjects"]:
         errors.append(_issue("static", "自然指令", tag, "missing_subjects",
             f"【重点：自然指令漏写已定义主体】在 ## 主体 中已定义 {tag}，但 ## 自然指令 未引用该标签；"
@@ -483,16 +489,16 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
             if pipe_width_operations(name,value) and not (separator_operations(name,value) and
                     (len([line for line in value.splitlines() if line.strip()])>1 or re.search(r'[、，,；;]',value))):
                 errors.append(_issue('static',name,value.strip(),'pipe_width',
-                    '标签用全角竖线｜连接，竖线两侧不留空格；标签内 - 两侧各一个空格，标签文字保留。',True))
+                    '标签用半角竖线 | 连接，竖线及标签内 - 两侧不留空格。',True))
             label_view=translate_tags(name,value)
             label_lines = [line.strip() for line in label_view.splitlines() if line.strip()]
             embedded_header = re.search(r"(?m)^[ \t]*#{2,6}[ \t]*\S", value)
             if not embedded_header and (len(label_lines) > 1 or re.search(r"[、，,；;]|^[ \t]*[|｜]|[|｜][ \t]*$|[|｜][ \t]*[|｜]", label_view.strip())):
                 empty_label = re.search(r"^[|｜]|[|｜]$|[|｜][ \t]*[|｜]", value.strip())
                 message = ("多标签列表存在空标签：请检查首尾多余竖线或连续竖线，不自动改写标签" if empty_label else
-                           "多个标签应使用全角 ｜ 拼接，不用顿号、逗号、分号或换行；实体/IP、镜头/运镜内部的 / 保留，请人工核对")
+                           "多个标签应使用半角 | 拼接，不用顿号、逗号、分号或换行；实体/ip、镜头/运镜内部的 / 保留，请人工核对")
                 safe=bool(separator_operations(name,value))
-                if safe:message='标签完整，仅将分隔符规范为全角竖线 ｜；标签内容与顺序保留。'
+                if safe:message='标签完整，仅将分隔符规范为半角竖线 |；标签内容与顺序保留。'
                 errors.append(_issue("static", name, value.strip(), "label_separator",message,safe))
         if name in LLM_TARGET_SECTIONS:
             view = mask_literals(value)
@@ -1507,7 +1513,7 @@ DEMO_CAPTION = """## 任务类型
 ## similarity_label
  yes
 ## video_similarity_tag 
-实体/IP - 相同|场景 - 相同|动作 - 相同|剧情-相同
+实体/ip-相同|场景-相同|动作-相同|剧情-相同
 ## audio_similarity_tag 
 无声音
 ## 输入描述 

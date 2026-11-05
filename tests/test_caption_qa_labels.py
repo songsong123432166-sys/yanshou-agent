@@ -14,7 +14,7 @@ from captionqa.caption_qa_review_store import ReviewStore
 from tests.test_caption_qa_upgrades import GOOD
 
 RAW='音色-相同，环境音-同类不同个'
-FIXED='音色 - 相同｜环境音 - 同类不同个'
+FIXED='音色-相同|环境音-同类不同个'
 
 
 def document(value=RAW,automatic=True):
@@ -34,16 +34,16 @@ class LabelTests(unittest.TestCase):
             for delimiter in ('，',',','、','；',';','\n','\r\n'):
                 original='\n  '+left+delimiter+' '+right+'\n\n'
                 with self.subTest(field=field,delimiter=delimiter):
-                    self.assertEqual(normalize_separators(field,original),'\n  '+' - '.join(t.strip() for t in left.split('-'))+'｜'+' - '.join(t.strip() for t in right.split('-'))+'\n\n')
+                    self.assertEqual(normalize_separators(field,original),'\n  '+'-'.join(t.strip() for t in left.split('-')).replace('实体/IP','实体/ip')+'|'+'-'.join(t.strip() for t in right.split('-')).replace('实体/IP','实体/ip')+'\n\n')
                     operations=separator_operations(field,original)
                     self.assertEqual(len(operations),1)
                     self.assertEqual(original[operations[0]['start']:operations[0]['end']],delimiter)
 
-    def test_ascii_pipes_become_fullwidth_while_internal_slashes_stay_unchanged(self):
+    def test_fullwidth_pipes_become_ascii_while_internal_slashes_stay_unchanged(self):
         for text in ('音色-相同|环境音-同类不同个','音色-相同｜环境音-同类不同个'):
-            self.assertEqual(normalize_separators('audio_similarity_tag',text),text.replace('|','｜').replace('-',' - '))
+            self.assertEqual(normalize_separators('audio_similarity_tag',text),text.replace('｜','|'))
         self.assertEqual(normalize_separators('video_similarity_tag','实体/IP-相同|场景-相同，镜头/运镜-相同'),
-                         '实体/IP - 相同｜场景 - 相同｜镜头/运镜 - 相同')
+                         '实体/ip-相同|场景-相同|镜头/运镜-相同')
 
     def test_uncertain_or_empty_labels_and_audio_prose_never_auto_change(self):
         for text in ('音色-相同，','，音乐-相同','音色-相同||环境音-相同','音色-相同，\n环境音-相同',
@@ -61,10 +61,10 @@ class LabelTests(unittest.TestCase):
         self.assertIn(FIXED,report['revised_caption'])
         self.assertTrue(next(i for i in report['issues'] if i['issue_type']=='label_separator')['resolved'])
         review=document();self.assertEqual(summary(review)['human_issues'],0)
-        self.assertEqual(summary(review)['automatic_issues'],2)
+        self.assertEqual(summary(review)['automatic_issues'],1)
         self.assertIn(FIXED,approved_changes(review)[1][0]['after'])
         manual=document(automatic=False)
-        self.assertEqual(summary(manual)['needs_confirmation'],2)
+        self.assertEqual(summary(manual)['needs_confirmation'],1)
         self.assertEqual(approved_changes(manual),{})
 
     def test_saved_pending_findings_upgrade_once_and_keep_human_decisions(self):
