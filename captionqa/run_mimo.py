@@ -90,7 +90,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if "--dry-run" not in caption_args:
             environment["OPENAI_API_KEY"] = read_saved_key()
         command = [sys.executable, str(Path(__file__).resolve().parents[1]/'agent.py'), 'check',
-                   "--base-url", BASE_URL, "--model", MODEL, "--timeout", "180", *caption_args]
+                   "--base-url", BASE_URL, "--model", MODEL, *caption_args]
         # The saved key is supplied only in this child process's environment.
         return subprocess.run(command, env=environment, check=False).returncode
     except CredentialError as exc:

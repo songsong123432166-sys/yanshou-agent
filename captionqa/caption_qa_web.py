@@ -35,7 +35,8 @@ DEFAULT_OUTPUT_DIR = Path.home() / "Downloads"
 SUPPORTED = {".xlsx", ".csv", ".jsonl", ".json"}
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 DEFAULT_CONCURRENCY = 8
-REQUEST_TIMEOUT = 60
+REQUEST_TIMEOUT = None
+_UNSET_TIMEOUT = object()
 CAPTION_TIMEOUT = None
 MAX_RETRIES = 2
 MAX_REQUEST_TIMEOUT = 900
@@ -74,7 +75,7 @@ class Job:
     field_resolution_rows: dict = field(default_factory=dict)
     active_requests: dict = field(default_factory=dict)
     timed_out_rows: set = field(default_factory=set)
-    request_timeout_seconds: int = REQUEST_TIMEOUT
+    request_timeout_seconds: int | None = REQUEST_TIMEOUT
     caption_timeout_seconds: None = CAPTION_TIMEOUT
 
     def refresh(self):
@@ -190,11 +191,11 @@ class App:
                           row.get("column"), row.get("sheet"), row.get("concurrency", DEFAULT_CONCURRENCY),
                           status=row["status"], total=row["total"], error=row.get("error", ""))
                 job.sheet_choices = row.get("sheet_choices", [])
-                # Previous history may contain a finite total deadline. It no
-                # longer applies; retain only the per-request network timeout.
+                # Preserve an explicitly saved request limit or null (unlimited).
+                # Older total deadlines remain disabled.
                 job.caption_timeout_seconds = None
                 saved_timeout = row.get("request_timeout_seconds", REQUEST_TIMEOUT)
-                if type(saved_timeout) is int and 1 <= saved_timeout <= MAX_REQUEST_TIMEOUT:
+                if saved_timeout is None or (type(saved_timeout) is int and 1 <= saved_timeout <= MAX_REQUEST_TIMEOUT):
                     job.request_timeout_seconds = saved_timeout
                 job.workflow_version = row.get("workflow_version", "legacy")
                 job.recheck_of = row.get("recheck_of")
@@ -446,7 +447,7 @@ class App:
             self.save_history()
             return fresh.snapshot()
 
-    def retry(self, identifier, sheet=None, concurrency=None, request_timeout_seconds=None, caption_timeout_seconds=None):
+    def retry(self, identifier, sheet=None, concurrency=None, request_timeout_seconds=_UNSET_TIMEOUT, caption_timeout_seconds=None):
         with self.lock:
             if concurrency is not None and (type(concurrency) is not int or not 1 <= concurrency <= 10):
                 raise ValueError("并行条数须在 1–10 之间。")
@@ -455,9 +456,9 @@ class App:
                 raise KeyError(identifier)
             if caption_timeout_seconds is not None:
                 raise ValueError('单条 AI 检查总时限已取消，无需设置该参数。')
-            request = job.request_timeout_seconds if request_timeout_seconds is None else request_timeout_seconds
-            if type(request) is not int or not 1 <= request <= MAX_REQUEST_TIMEOUT:
-                raise ValueError(f"单次请求等待须为 1–{MAX_REQUEST_TIMEOUT} 秒的整数。")
+            request = job.request_timeout_seconds if request_timeout_seconds is _UNSET_TIMEOUT else request_timeout_seconds
+            if request is not None and (type(request) is not int or not 1 <= request <= MAX_REQUEST_TIMEOUT):
+                raise ValueError(f"单次请求等待须为 1–{MAX_REQUEST_TIMEOUT} 秒的整数，或 null（不限）。")
             job.refresh()
             if job.repair_exporting:
                 raise ValueError("返修表正在导出，请完成后再重试检测。")
@@ -498,8 +499,7 @@ class App:
                 job.policy_version, job.outdated_policy = qa.AUTO_FIX_POLICY_VERSION, False
             if concurrency is not None:
                 job.concurrency = concurrency
-            if request_timeout_seconds is not None:
-                job.request_timeout_seconds = request_timeout_seconds
+            job.request_timeout_seconds = request
             job.caption_timeout_seconds = None
             # Changed checkpoints require fresh decisions; retain old approvals
             # as history rather than silently applying them to new findings.

@@ -7,6 +7,23 @@ from tests.test_caption_qa_web import csv_bytes
 from tests.test_caption_qa_upgrades import GOOD
 
 class RetryTimeoutTests(unittest.TestCase):
+    def test_explicit_null_removes_a_saved_limit_and_survives_restart(self):
+        before=self.job.cache.read_bytes();self.job.status='partial';self.job.request_timeout_seconds=120
+        real=web.qa.CaptionQAAgent;options=[]
+        def factory(**kw):options.append(kw);return real(**kw)
+        with patch.object(web.qa,'CaptionQAAgent',side_effect=factory):
+            status,body=fixtures.WebTests.request(self,'POST',f'/api/jobs/{self.job.id}/retry',body=b'{"request_timeout_seconds":null}')
+            self.assertEqual(status,202,body);self.finish()
+        self.assertIsNone(options[0]['timeout']);self.assertIsNone(self.job.snapshot()['request_timeout_seconds'])
+        self.assertEqual(self.job.cache.read_bytes(),before)
+        restored=web.App(self.root/'out',self.root/'work');self.addCleanup(restored.close)
+        self.assertIsNone(restored.jobs[self.job.id].request_timeout_seconds)
+
+    def test_omitting_timeout_preserves_an_explicit_finite_limit(self):
+        self.job.status='partial';self.job.request_timeout_seconds=120
+        self.app.retry(self.job.id);self.finish()
+        self.assertEqual(self.job.request_timeout_seconds,120)
+
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name);self.app=web.App(self.root/'out',self.root/'work');self.addCleanup(self.app.close)
@@ -28,7 +45,7 @@ class RetryTimeoutTests(unittest.TestCase):
         for value in [0,901,True,1.5,'120']:
             with self.subTest(value=value),self.assertRaisesRegex(ValueError,'等待须为'):
                 self.app.retry(self.job.id,request_timeout_seconds=value)
-        self.assertEqual(self.job.request_timeout_seconds,60)
+        self.assertIsNone(self.job.request_timeout_seconds)
     def test_http_retry_accepts_longer_timeout_and_preserves_cache(self):
         before=self.job.cache.read_bytes();self.job.status='partial'
         status,body=fixtures.WebTests.request(self,'POST',f'/api/jobs/{self.job.id}/retry',body=b'{"concurrency":2,"request_timeout_seconds":120}')
@@ -54,7 +71,7 @@ class RetryTimeoutTests(unittest.TestCase):
         for value in [0,180,600,True,1.5,'600']:
             with self.subTest(value=value),self.assertRaisesRegex(ValueError,'总时限已取消'):
                 self.app.retry(self.job.id,caption_timeout_seconds=value)
-        self.assertEqual(self.job.concurrency,8);self.assertEqual(self.job.request_timeout_seconds,60)
+        self.assertEqual(self.job.concurrency,8);self.assertIsNone(self.job.request_timeout_seconds)
         self.assertIsNone(self.job.caption_timeout_seconds)
     def test_legacy_total_deadline_is_discarded_on_restore(self):
         self.app.save_history();p=self.root/'work/session.json';data=json.loads(p.read_text())
@@ -67,9 +84,33 @@ class RetryTimeoutTests(unittest.TestCase):
         self.app.save_history();p=self.root/'work/session.json';data=json.loads(p.read_text())
         data['jobs'][0].pop('request_timeout_seconds',None);p.write_text(json.dumps(data))
         restored=web.App(self.root/'out',self.root/'work');self.addCleanup(restored.close)
-        self.assertEqual(restored.jobs[self.job.id].request_timeout_seconds,60)
+        self.assertIsNone(restored.jobs[self.job.id].request_timeout_seconds)
 
 class NoAggregateDeadlineTests(unittest.IsolatedAsyncioTestCase):
+    async def test_unlimited_sdk_and_request_have_no_application_deadline(self):
+        from types import SimpleNamespace
+        from tests.test_caption_qa_upgrades import sdk_response,semantic_reply
+        options=[];calls=[]
+        async def create(**kw):
+            calls.append(kw);await asyncio.sleep(.03);return sdk_response(semantic_reply())
+        async def close():pass
+        client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)),close=close)
+        def factory(**kw):options.append(kw);return client
+        with patch('openai.AsyncOpenAI',side_effect=factory),patch.object(web.qa.asyncio,'wait_for',side_effect=AssertionError('Unexpected deadline')):
+            agent=web.qa.CaptionQAAgent(api_key='synthetic-test-key',timeout=None)
+            report=await agent.acheck_single_caption(GOOD)
+            await agent.aclose()
+        self.assertTrue(report['semantic_qa_performed'])
+        self.assertIsNone(options[0]['timeout']);self.assertIsNone(calls[0]['timeout'])
+
+    async def test_unlimited_request_still_propagates_user_cancellation(self):
+        from tests.test_caption_qa_request_progress import SlowClient
+        client=SlowClient(all_slow=True)
+        agent=web.qa.CaptionQAAgent(async_client=client,timeout=None)
+        task=asyncio.create_task(agent.acheck_single_caption(GOOD));await asyncio.sleep(.01);task.cancel()
+        with self.assertRaises(asyncio.CancelledError):await task
+        self.assertEqual(client.cancelled,1)
+
     async def test_default_agent_uses_only_per_request_timeout(self):
         from tests.test_caption_qa_upgrades import FakeAsyncClient,semantic_reply
         agent=web.qa.CaptionQAAgent(async_client=FakeAsyncClient(semantic_reply()),timeout=.2)

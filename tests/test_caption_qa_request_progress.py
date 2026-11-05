@@ -136,7 +136,7 @@ class WebRequestProgressTests(unittest.TestCase):
             client=SlowClient(all_slow=True)
             from tests.test_caption_qa_upgrades import FakeAsyncClient
             def factory(**options):
-                self.assertEqual(options['timeout'],60)
+                self.assertIsNone(options['timeout'])
                 self.assertIsNone(options['total_timeout'])
                 self.assertEqual(options['max_retries'],2)
                 return SafeAutoFixAgent(async_client=client,timeout=1,total_timeout=.03)

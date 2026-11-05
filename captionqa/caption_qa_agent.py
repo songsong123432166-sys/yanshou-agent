@@ -639,7 +639,7 @@ def _empty_semantic() -> SemanticResult:
                           corrected_sections={}, performed=False)
 
 
-def _client_options(api_key: str | None, base_url: str | None, timeout: float) -> dict[str, Any]:
+def _client_options(api_key: str | None, base_url: str | None, timeout: float | None) -> dict[str, Any]:
     key = api_key or os.getenv("OPENAI_API_KEY")
     if not key:
         raise ValueError("未设置 OPENAI_API_KEY，语义质检未执行")
@@ -650,7 +650,7 @@ def _client_options(api_key: str | None, base_url: str | None, timeout: float) -
 
 
 def _request_options(sections: Mapping[str, str], static_errors: Sequence[Issue],
-                     model_name: str | None, timeout: float) -> dict[str, Any]:
+                     model_name: str | None, timeout: float | None) -> dict[str, Any]:
     # 单次调用只构造这一条 Caption；非白名单字段及其错误片段均不外发。
     remaining = {(i["section"], i["issue_type"], i["original_snippet"]) for i in run_static_rules(sections)}
     pending = [i for i in static_errors if i["issue_type"] in HARD_TYPES or
@@ -698,15 +698,16 @@ def _retryable(exc: Exception) -> bool:
         "RateLimitError", "APITimeoutError", "APIConnectionError"}
 
 
-def _valid_llm_parameters(max_retries: int, timeout: float, retry_delay: float) -> bool:
-    return (isinstance(max_retries, int) and 0 <= max_retries <= 3 and math.isfinite(timeout) and timeout > 0
+def _valid_llm_parameters(max_retries: int, timeout: float | None, retry_delay: float) -> bool:
+    return (isinstance(max_retries, int) and 0 <= max_retries <= 3 and
+            (timeout is None or (type(timeout) in (int,float) and math.isfinite(timeout) and timeout > 0))
             and math.isfinite(retry_delay) and retry_delay >= 0)
 
 
 def run_llm_semantic_qa(sections: Mapping[str, str], static_errors: Sequence[Issue], *,
                         client: Any = None, model_name: str | None = None,
                         api_key: str | None = None, base_url: str | None = None,
-                        max_retries: int = 3, timeout: float = 60.0,
+                        max_retries: int = 3, timeout: float | None = None,
                         retry_delay: float = 1.0) -> SemanticResult:
     """Chat Completions + JSON 模式；最多 1 + max_retries 次调用。
 
@@ -714,7 +715,7 @@ def run_llm_semantic_qa(sections: Mapping[str, str], static_errors: Sequence[Iss
     失败返回 performed=False 的人工复核结果，不把失败误判成 PASS。
     """
     if not _valid_llm_parameters(max_retries, timeout, retry_delay):
-        return _semantic_fallback("LLM 参数非法：额外重试须在 0-3 之间，超时为正数，退避时间非负")
+        return _semantic_fallback("LLM 参数非法：额外重试须在 0-3 之间，超时为正数或不限，退避时间非负")
     owned = client is None
     if client is None:
         try:
@@ -745,11 +746,11 @@ def run_llm_semantic_qa(sections: Mapping[str, str], static_errors: Sequence[Iss
 async def arun_llm_semantic_qa(sections: Mapping[str, str], static_errors: Sequence[Issue], *,
                              client: Any = None, model_name: str | None = None,
                              api_key: str | None = None, base_url: str | None = None,
-                             max_retries: int = 3, timeout: float = 60.0,
+                             max_retries: int = 3, timeout: float | None = None,
                              retry_delay: float = 1.0, total_timeout: float | None = None) -> SemanticResult:
     """真正的异步网络调用，退避使用 asyncio.sleep；取消任务会向上传播。"""
     if not _valid_llm_parameters(max_retries, timeout, retry_delay):
-        return _semantic_fallback("LLM 参数非法：额外重试须在 0-3 之间，超时为正数，退避时间非负")
+        return _semantic_fallback("LLM 参数非法：额外重试须在 0-3 之间，超时为正数或不限，退避时间非负")
     if total_timeout is not None and (not math.isfinite(total_timeout) or total_timeout <= 0):
         return _semantic_fallback('单条 AI 检查总时限必须为有限正数')
     owned = client is None
@@ -771,8 +772,8 @@ async def arun_llm_semantic_qa(sections: Mapping[str, str], static_errors: Seque
             attempts = attempt + 1
             _notify_request_progress('requesting', attempt=attempts, max_attempts=max_retries + 1)
             try:
-                response = await asyncio.wait_for(client.chat.completions.create(
-                    **_request_options(sections, static_errors, model_name, timeout)), timeout=timeout)
+                request = client.chat.completions.create(**_request_options(sections, static_errors, model_name, timeout))
+                response = await request if timeout is None else await asyncio.wait_for(request, timeout=timeout)
                 return _parse_llm_response(response, sections)
             except Exception as exc:
                 reason = f"LLM 请求或 JSON 校验失败（{type(exc).__name__}；已尝试 {attempt + 1} 次），需人工复核"
@@ -900,10 +901,10 @@ class CaptionQAAgent:
     def __init__(self, *, dry_run: bool = False, client: Any = None, async_client: Any = None,
                  model_name: str | None = None, api_key: str | None = None,
                  base_url: str | None = None, max_retries: int = 3,
-                 timeout: float = 60.0, retry_delay: float = 1.0,
+                 timeout: float | None = None, retry_delay: float = 1.0,
                  total_timeout: float | None = None) -> None:
         if not _valid_llm_parameters(max_retries, timeout, retry_delay):
-            raise ValueError("额外重试须在 0-3 之间，超时为有限正数，退避时间非负")
+            raise ValueError("额外重试须在 0-3 之间，超时为有限正数或不限，退避时间非负")
         if total_timeout is not None and (not math.isfinite(total_timeout) or total_timeout <= 0):
             raise ValueError('单条 AI 检查总时限必须为有限正数')
         self.total_timeout = total_timeout
@@ -1454,12 +1455,12 @@ def main(demo_caption: str, argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--base-url", default=None, help="覆盖 OPENAI_BASE_URL")
     parser.add_argument("--max-retries", type=int, default=3, help="额外重试次数，范围 0-3，默认 3")
     parser.add_argument("--concurrency", type=int, default=10, help="JSONL 批量最大并发数，默认 10")
-    parser.add_argument("--timeout", type=float, default=60.0, help="每次调用超时秒数，默认 60")
+    parser.add_argument("--timeout", type=float, default=None, help="可选的单次请求超时秒数；默认不设时限")
     args = parser.parse_args(argv)
     if sum(value is not None for value in (args.text, args.caption_file, args.input)) > 1:
         parser.error("--text、--caption-file、--input 只能选择一个")
-    if not 0 <= args.max_retries <= 3 or not math.isfinite(args.timeout) or args.timeout <= 0 or args.concurrency < 1:
-        parser.error("max-retries 必须在 0-3 之间，timeout 必须为有限正数，concurrency 必须为正整数")
+    if not _valid_llm_parameters(args.max_retries,args.timeout,1.0) or args.concurrency < 1:
+        parser.error("max-retries 必须在 0-3 之间，timeout 指定时必须为有限正数，concurrency 必须为正整数")
     if args.legacy_auto_fix:
         agent_class = CaptionQAAgent
     else:

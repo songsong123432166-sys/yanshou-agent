@@ -65,7 +65,7 @@ class MiMoLauncherTests(unittest.TestCase):
         self.assertNotIn(DUMMY, command)
         self.assertEqual(run.call_args.kwargs["env"]["OPENAI_API_KEY"], DUMMY)
         self.assertEqual(command[command.index("--base-url") + 1], mimo.BASE_URL)
-        self.assertEqual(command[command.index("--timeout") + 1], "180")
+        self.assertNotIn("--timeout", command)
         self.assertEqual(command[-2:], ["--input", "captions.xlsx"])
 
     def test_dry_run_does_not_read_keychain(self):

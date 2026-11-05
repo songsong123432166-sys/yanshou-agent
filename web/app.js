@@ -225,7 +225,8 @@ function renderJobs() {
     if(job.status==='running'&&!job.dry_run){
       const waiting=element('div','scope-note');
       waiting.setAttribute('aria-label','AI 请求进度');
-      waiting.append(element('p','',`单次请求最多 ${job.request_timeout_seconds || 60} 秒，最多尝试 ${job.max_request_attempts || 3} 次，不设额外总时限。未完成项保留本地结果，可单独重试。`));
+      const limit=job.request_timeout_seconds==null ? '单次请求不设时限' : `单次请求最多 ${job.request_timeout_seconds} 秒`;
+      waiting.append(element('p','',`${limit}，请求失败后最多尝试 ${job.max_request_attempts || 3} 次，不设额外总时限。未完成项保留本地结果，可单独重试。`));
       for(const item of job.active_requests || []){
         const name=item.sample_id ? `ID ${item.sample_id}` : `数据第 ${item.row_index} 条`;
         const attempt=item.attempt ? ` · 第 ${item.attempt}/${item.max_attempts} 次请求` : '';
