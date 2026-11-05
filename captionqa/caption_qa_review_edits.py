@@ -1,7 +1,35 @@
 """One resolver for approved operations and manual drafts; no file writes."""
+import difflib
 import captionqa.caption_qa_agent as qa
 from captionqa.caption_qa_review_audio import touches_audio
 from captionqa.caption_qa_review_model import AUTO_WORKFLOW, FieldResolution
+
+
+def normalize_review_format(field,original,text,issues,manual=False):
+    """Honor per-issue keeps while normalizing other eligible metadata spans."""
+    from captionqa.caption_qa_labels import FIELDS,pipe_width_operations
+    from captionqa.caption_qa_metadata import case_operations
+    if field not in FIELDS:return text
+    edits=pipe_width_operations(field,text)+case_operations(field,text)
+    if not edits:return text
+    blocked=[]
+    for issue in issues:
+        if issue['kind'] not in {'pipe_width','tag_language'}:continue
+        if issue['decision'] in {'auto','approve','manual'}:continue
+        if manual and issue['decision'] not in {'keep','keep_highlight','reject'}:continue
+        spans=[(o['start'],o['end']) for o in issue.get('operations',[])] or issue.get('locations',[])
+        blocked.extend(spans)
+    matcher=difflib.SequenceMatcher(None,original,text,autojunk=False) if blocked else None
+    def mapped(position,right=False):
+        for code,a,b,c,d in matcher.get_opcodes():
+            if a<=position<=b:
+                return c+position-a if code=='equal' else d if right else c
+        return len(text)
+    protected=[(mapped(a),mapped(b,True)) for a,b in blocked]
+    for op in sorted(edits,key=lambda o:(o['start'],o['end']),reverse=True):
+        if any(op['start']<b and op['end']>a for a,b in protected):continue
+        text=text[:op['start']]+op['new']+text[op['end']:]
+    return text
 
 
 def resolve_field(document, field, issues):
@@ -79,12 +107,11 @@ def resolve_field(document, field, issues):
                 'automatic_rule' if selected and all(i['decision'] == 'auto' for i in selected) else 'approved_rule')
 
     from captionqa.caption_qa_review_model import AUTO_WORKFLOWS
-    from captionqa.caption_qa_labels import normalize_pipe_width
     canonical_pipe=(document['workflow_version'] in AUTO_WORKFLOWS or
                     any(i['kind'] in {'pipe_width','label_separator'} and i['decision']=='approve' for i in issues))
-    if canonical_pipe:new=normalize_pipe_width(field['name'],new)
+    if canonical_pipe:new=normalize_review_format(field['name'],old,new,issues,mode=='human')
     editor = document['field_edits'].get(field_id, new.strip())
-    if canonical_pipe:editor=normalize_pipe_width(field['name'],editor)
+    if canonical_pipe:editor=normalize_review_format(field['name'],old,editor,issues,mode=='human')
     return FieldResolution(field_id, field['row_index'], field['sample_id'], field['name'],
                            old, new, editor, mode)
 

@@ -1,13 +1,13 @@
 {
-  "skill_version": "1.9.0",
+  "skill_version": "1.9.1",
   "pipe_policy": "label-delimiter-format-v3",
   "punctuation_policy": "basic-punctuation-v1",
   "spacing_policy": "metadata-hyphen-spacing-v3",
   "time_layout_policy": "time-cut-boundary-v3",
-  "field_schema_version": 10,
-  "auto_fix_policy_version": 10,
+  "field_schema_version": 11,
+  "auto_fix_policy_version": 11,
   "scope": "One structured Caption; no network calls, tables, keys or source overwrite.",
-  "schema_adapter": "latest-field-aliases-v1: tone, scene, visual_element, summary; known task/prompt ownership only",
+  "schema_adapter": "shared-field-aliases-v2: same aliases for Agent, field normalization and Skill",
   "shared_sources": [
     {
       "source": "captionqa/caption_qa_metadata.py",
@@ -17,15 +17,15 @@
     },
     {
       "source": "captionqa/caption_field_schema.py",
-      "source_sha256": "1dfd4b901517a5c136acb6ecb55ddb58d497581db31a0d380d01ecdcc3208fc5",
+      "source_sha256": "6f81cf4a85a921cc6e8ac5427a5a0f0adfb89dee75c35efb3a2e9903f5bac0ab",
       "bundled": "scripts/_schema.py",
-      "bundled_sha256": "1ab9ce8fa7c6921cbf6cf7ed179d59481e0b2acce9d074ced79c60cdb2a053ec"
+      "bundled_sha256": "ef410efe849f47bcb9b00c1123dcf2b03fb675388c261102c1f60c68bb6b5c73"
     },
     {
       "source": "captionqa/caption_qa_agent.py",
-      "source_sha256": "f26958e2439c52c335456e28a8cf74e4185e4347f59e5d55879d2b80b5d7ab32",
+      "source_sha256": "56a5aed686d9515200d0ac59cb4bd4f43a3ac36f9cffa0e2f63ba1e8100721a1",
       "bundled": "scripts/_rules.py",
-      "bundled_sha256": "6d5a28e9233944175d6ffac9d0e28f8ea5c7dc93bf7bdc65d2480b998d78222d"
+      "bundled_sha256": "402644c7947cee81e6dece1b5ee79adeca3e5a74c44b5a2b30490357986e5e7e"
     },
     {
       "source": "captionqa/caption_qa_review_audio.py",

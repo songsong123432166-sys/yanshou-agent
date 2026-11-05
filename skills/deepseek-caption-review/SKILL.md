@@ -5,7 +5,7 @@ display_name_en: Single Caption Review and Repair
 description: 检查用户粘贴的一段结构化视频 Caption，按固定规则安全修正格式，给出待确认的语义建议，并仅应用用户明确批准的改稿。
 description_zh: 一次检查一段 Caption；安全格式直接修正，病句和主体引用等建议确认后应用，保留原文与修订记录。
 description_en: Review one structured video Caption, apply deterministic safe fixes, and apply semantic suggestions only after explicit human confirmation.
-version: 1.9.0
+version: 1.9.1
 author: Caption QA 项目
 examples_zh:
   - 检查并安全修正下面这一段 Caption。

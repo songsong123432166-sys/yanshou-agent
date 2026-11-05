@@ -287,7 +287,11 @@ function renderReviewPanel(job) {
     (view.filter==='pending'&&(['pending','defer'].includes(issue.decision)||view.recent.has(issue.issue_id)))||
     (view.filter==='approved'&&['approve','manual'].includes(issue.decision))||(view.filter==='rejected'&&['reject','keep','keep_highlight'].includes(issue.decision)));
   if(view.filter==='pending'&&view.recent.size)panel.append(element('p','partial-note','本次刚审核的项目暂留原位，便于核对；切换筛选后仅显示对应项目。'));
-  const fields=documentData.fields.filter(field=>field.issue_ids.some(id=>accepted(byId.get(id)))||(['all','blocked'].includes(view.filter)&&blockedFields.has(field.field_id)));
+  const fields=documentData.fields.filter(field=>field.issue_ids.some(id=>accepted(byId.get(id)))||
+    (['all','blocked'].includes(view.filter)&&blockedFields.has(field.field_id))||
+    (view.filter==='recheck'&&recheckFields.has(field.field_id))||
+    (view.filter==='unsaved'&&dirtyFields.has(field.field_id))||
+    (['all','approved'].includes(view.filter)&&Object.hasOwn(documentData.field_edits,field.field_id)));
   const pages=Math.max(1,Math.ceil(fields.length/10));view.page=Math.min(view.page,pages-1);
   const paging=element('div','review-toolbar');
   for(const [label,delta] of [['上一页',-1],['下一页',1]]){

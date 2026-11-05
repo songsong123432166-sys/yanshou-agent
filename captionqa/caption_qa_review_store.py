@@ -61,6 +61,8 @@ class ReviewStore:
             pass
 
     def load(self):
+        from captionqa.caption_qa_review_resume import resume_review
+        resume_review(self)
         from captionqa.caption_qa_review import make_review
         if self.path.exists():
             document = json.loads(self.path.read_text())

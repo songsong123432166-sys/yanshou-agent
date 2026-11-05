@@ -471,6 +471,9 @@ class App:
                 if sheet != job.sheet and not job.stale_results and not job.outdated_policy and job.cache.exists() and job.cache.stat().st_size:
                     raise ValueError("此任务已有续传记录；更换工作表请重新添加文件，避免混用结果。")
                 job.sheet = sheet
+            if not (job.stale_results or job.outdated_policy or job.outdated_instruction_rows):
+                from captionqa.caption_qa_review_resume import prepare_retry
+                prepare_retry(self._review_store(job))
             if job.stale_results or job.outdated_policy or job.outdated_instruction_rows:
                 if job.outdated_policy or job.outdated_instruction_rows:
                     job.dry_run = True
@@ -501,12 +504,8 @@ class App:
                 job.concurrency = concurrency
             job.request_timeout_seconds = request
             job.caption_timeout_seconds = None
-            # Changed checkpoints require fresh decisions; retain old approvals
-            # as history rather than silently applying them to new findings.
-            for suffix in ('.review.json','.review_summary.json'):
-                previous = job.cache.with_suffix(suffix)
-                if previous.exists():
-                    previous.rename(previous.with_name(previous.stem + '_previous_' + uuid.uuid4().hex[:6] + previous.suffix))
+            # Ordinary retries carry source-bound review work through a
+            # recovery marker; new-policy runs above use a separate checkpoint.
             job.status, job.error = "queued", ""
             self.save_history()
             self.executor.submit(self.process, job)
@@ -578,7 +577,7 @@ class App:
             raise KeyError(identifier)
         job.refresh()
         if job.outdated_instruction_rows:
-            raise ValueError('旧版未识别 subject 等字段别名或 subtask_type 中的提示正文，请重新检测后审核；原文件、旧报告和审核记录保留。')
+            raise ValueError('旧版未识别 subject、scene、summary 等字段别名或 subtask_type 中的提示正文，请重新检测后审核；原文件、旧报告和审核记录保留。')
         if job.status not in {'done', 'partial'} or not job.cache.is_file() or job.stale_results:
             raise ValueError('请先完成检测，再审核与回填。')
         if job.repair_exporting:

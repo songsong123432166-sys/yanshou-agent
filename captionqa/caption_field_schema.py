@@ -5,7 +5,7 @@ import re
 
 from captionqa.caption_qa_metadata import TITLES, ALIASES as TAG_ALIASES, normalize as translate_tags
 
-VERSION=10
+VERSION=11
 HEADER_PREFIX='## '
 FIELDS=('任务类型','提示','similarity_label','video_similarity_tag','audio_similarity_tag',
         '输入描述','基调','场景','主体','画面元素','总结','自然指令')
@@ -13,6 +13,7 @@ ALIASES={name:name for name in FIELDS}
 ALIASES.update(TAG_ALIASES)
 ALIASES.update(task_type='_task',subtask_type='_subtask',brief_captions='输入描述',subject='主体',
                natural_instruction='自然指令',similarity_tag='video_similarity_tag',
+               tone='基调',scene='场景',visual_element='画面元素',summary='总结',
                **{'自然指令（细节）':'自然指令','自然指令(细节)':'自然指令','自然描述':'自然指令'})
 # User-provided child task taxonomy; root types such as “参考” are not labels.
 TASK_LABELS=('人物参考','物品参考','造型参考','场景参考','动作参考','布局参考','运镜参考',

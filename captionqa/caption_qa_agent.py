@@ -118,7 +118,7 @@ LLM_TARGET_SECTIONS = {"提示", "输入描述", "基调", "场景", "主体", "
 LLM_CONTEXT_SECTIONS = LLM_TARGET_SECTIONS | {"画面元素"}
 ANCHOR_HEADERS = {"任务类型", "提示", "输入描述", "基调", "场景", "主体", "总结", "自然指令"}
 CAPTION_SCOPE_VERSION = 3
-CAPTION_PARSER_VERSION = 5
+CAPTION_PARSER_VERSION = 6
 QA_RESULT_COLUMNS = ("qa_status", "qa_missing_or_dup_subjects", "qa_issues_summary",
                      "qa_human_review_reason", "qa_revised_caption")
 CORE_SECTIONS = LLM_TARGET_SECTIONS  # 兼容旧调用方；实际顺序始终取自原始 sections。
@@ -127,7 +127,7 @@ MULTI_LABEL_SECTIONS = frozenset({"任务类型", "video_similarity_tag", "audio
 PUNCTUATION_EXEMPT_SECTIONS = MULTI_LABEL_SECTIONS | {"similarity_label"}
 HARD_TYPES = {"missing_subjects", "ghost_subjects", "skipped_numbering", "duplicate_defined_subjects",
               "duplicate_scene_numbers", "duplicate_input_numbers"}
-AUTO_FIX_POLICY_VERSION = 10
+AUTO_FIX_POLICY_VERSION = 11
 AUTO_LLM_ISSUE_TYPES = {"裸标签漏写 <>", "无歧义错别字", "标点符号硬伤"}
 DISABLED_LLM_ISSUE_TYPES = {"重复标签前缀", "衍字/叠词冗余", "跨字段属性冲突", "属性冲突", "duplicate_prefixes"}
 DISABLED_FINDING_RE = re.compile(
@@ -242,6 +242,7 @@ def instruction_parser_outdated(text, version=1, *, semantic=False):
     for index,(name,start,body) in enumerate(headers):
         raw=_raw_section_name(SECTION_RE.match(text,start))
         minimum={'自然描述':2,'natural_instruction':3,'subject':4,'task_type':5,
+                 'tone':6,'scene':6,'visual_element':6,'summary':6,
                  'brief_captions':4,'similarity_tag':4}.get(raw,1)
         if name=='提示' and raw=='subtask_type':minimum=4
         if names.count(name)>1 and raw==name and any(

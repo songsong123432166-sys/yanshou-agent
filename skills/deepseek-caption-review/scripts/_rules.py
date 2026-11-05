@@ -22,7 +22,7 @@ MULTI_LABEL_SECTIONS = frozenset({"任务类型", "video_similarity_tag", "audio
 
 PUNCTUATION_EXEMPT_SECTIONS = MULTI_LABEL_SECTIONS | {"similarity_label"}
 
-AUTO_FIX_POLICY_VERSION = 10
+AUTO_FIX_POLICY_VERSION = 11
 
 DISABLED_FINDING_RE = re.compile(
     r"属性冲突|跨字段.{0,8}(?:冲突|不一致)|(?:服饰|服装|颜色|材质|方位|属性).{0,16}(?:冲突|不一致|矛盾)"

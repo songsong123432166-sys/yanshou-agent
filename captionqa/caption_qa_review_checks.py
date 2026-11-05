@@ -100,4 +100,27 @@ def assess_review(document, fields, rows):
             if field:
                 warnings.append({'field_id':field.field_id,'sample_id':field.sample_id,'field':field.name,
                     'message':ref['suggestion'],'excerpt':ref['original_snippet']})
+    # Compare final structural findings with the original, rather than only
+    # comparing them with the original issue's type. Newly introduced issues
+    # are warnings on the saved field, not blockers or automatic rewrites.
+    structural=qa.HARD_TYPES | {'symbol_format','bare_tags','label_separator','unknown_tag_language'}
+    def signature(finding):return (finding['section'],finding['issue_type'],finding['original_snippet'])
+    for row in rows:
+        changed=[f for f in fields if f.row_index==row.row_index and f.changed and
+                 f.mode in {'human','approved_candidate','approved_rule'}]
+        if row.errors or not changed:continue
+        original={signature(i) for i in qa.run_static_rules(qa.parse_caption_sections(row.original))}
+        final=qa.parse_caption_sections(row.final_text)
+        for finding in qa.run_static_rules(final):
+            if finding['issue_type'] not in structural or signature(finding) in original:continue
+            targets=[f for f in changed if f.name==finding['section']]
+            if not targets and finding['issue_type'] in {'missing_subjects','ghost_subjects'}:
+                targets=[f for f in changed if f.name in {'主体','总结','自然指令'}]
+            if not targets:continue
+            field=targets[0]
+            if any(w['field_id']==field.field_id and w.get('kind')==finding['issue_type'] and
+                   w.get('excerpt')==finding['original_snippet'] for w in warnings):continue
+            warnings.append({'field_id':field.field_id,'sample_id':field.sample_id,'field':field.name,
+                'kind':finding['issue_type'],'excerpt':finding['original_snippet'],
+                'message':'定稿后新增本地检查问题：'+finding['suggestion']+' 人工稿已保留，此提示不阻止导出。'})
     return warnings
