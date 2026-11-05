@@ -1,6 +1,120 @@
 'use strict';
 const reviewUI = new Map();
 const reviewNames = {};
+const reviewFieldName = name => ({similarity_label:'参考关系标签',video_similarity_tag:'视觉标签',audio_similarity_tag:'听觉标签'}[name]||name);
+let activeReviewEditor = null;
+
+function reviewEditableText(node,job,field,issue=null) {
+  node.classList.add('review-editable-text');
+  node.dataset.reviewEditField=field.field_id;
+  node.tabIndex=0;
+  node.setAttribute('role','button');
+  node.setAttribute('aria-label',`编辑题目 ${field.sample_id||'ID缺失'} 的${reviewFieldName(field.name)}正文`);
+  node.title='点击正文编辑完整字段';
+  node.onclick=()=>{
+    if(window.getSelection?.()?.toString())return;
+    openReviewEditor(job,field.field_id,issue?.issue_id);
+  };
+  node.addEventListener('keydown',event=>{
+    if(event.key==='Enter'||event.key===' '){event.preventDefault();openReviewEditor(job,field.field_id,issue?.issue_id);}
+  });
+  return node;
+}
+
+function openReviewEditor(job,fieldId,issueId) {
+  const view=reviewState(job.id);
+  if(view.busy||view.batchSaving||activeReviewEditor)return;
+  const field=view.data?.review.fields.find(f=>f.field_id===fieldId);
+  const resolution=view.data?.projection.fields[fieldId];
+  if(!field||!resolution)return;
+  const issue=view.data.review.issues.find(i=>i.issue_id===issueId);
+  const dialog=element('dialog','review-large-editor');
+  dialog.setAttribute('aria-label',`直接编辑：题目 ${field.sample_id||'ID缺失'} · ${reviewFieldName(field.name)}`);
+  const header=element('header','review-large-header');
+  const heading=element('div','');
+  heading.append(element('h2','',`题目 ${field.sample_id||'ID缺失'} · ${reviewFieldName(field.name)}`));
+  const row=field.source_row||(field.row_index+(/\.(csv|xlsx)$/i.test(job.name||'')?1:0));
+  heading.append(element('p','partial-note',[job.caption_location,field.source_sheet,row?`原表第 ${row} 行`:''].filter(Boolean).join(' · ')));
+  const close=element('button','secondary-button','收起编辑');
+  close.setAttribute('aria-label','收起大窗口编辑');
+  header.append(heading,close);
+  const context=element('p','review-large-context',issue?`当前疑点：${issue.reason}`:'编辑当前完整字段，保存后会逐项复核原疑点。');
+  const toolbar=element('div','review-large-toolbar');
+  const compare=element('button','secondary-button','对照原文');compare.setAttribute('aria-expanded','false');
+  const jump=element('button','secondary-button','定位当前疑点');jump.hidden=!issue?.snippet?.trim();
+  toolbar.append(compare,jump);
+  const workspace=element('div','review-large-workspace');
+  const original=element('section','review-large-original');original.hidden=true;
+  original.append(element('h3','','输入原文'),element('pre','review-source',field.original));
+  const editing=element('section','review-large-draft');
+  const label=element('label','','当前完整字段（直接修改）');
+  const area=document.createElement('textarea');
+  area.setAttribute('aria-label',`题目 ${field.sample_id||'ID缺失'} ${reviewFieldName(field.name)} 的大窗口最终稿`);
+  area.value=view.drafts.get(fieldId)??resolution.editor_text;
+  area.spellcheck=false;label.append(area);editing.append(label);
+  workspace.append(original,editing);
+  const footer=element('footer','review-large-footer');
+  const status=element('p','review-large-status');status.setAttribute('role','status');
+  const save=element('button','primary-button','保存本字段');
+  footer.append(status,save);
+  dialog.append(header,context,toolbar,workspace,footer);
+  let saving=false,failed=false;
+  const update=()=>{
+    const current=view.data.projection.fields[fieldId];
+    const saved=Object.hasOwn(view.data.review.field_edits,fieldId)&&area.value===current.editor_text;
+    save.disabled=saving||view.busy||view.batchSaving||!field.sample_id||saved;
+    save.textContent=saving?'正在保存…':saved?'已保存':'保存本字段';
+    close.disabled=saving;area.disabled=saving;
+    if(failed)return;
+    status.setAttribute('role','status');
+    status.textContent=saving?'正在保存完整字段…':!field.sample_id?'原表缺少题目 ID，暂不能保存。':
+      saved?'本字段已保存；导出审核后版本时应用。':area.value!==current.editor_text?
+        '有未保存修改。收起后输入仍保留在当前页面，请保存后再导出。':'可直接修改完整正文，⌘ / Ctrl + Enter 保存。';
+  };
+  const locate=()=>{
+    const snippet=issue?.snippet?.trim();
+    if(!snippet)return area.focus();
+    const start=area.value.indexOf(snippet);
+    area.focus();
+    if(start<0){status.textContent='当前稿已不包含原疑点片段，请核对完整字段。';return;}
+    area.setSelectionRange(start,start+snippet.length);
+    // Measure the same wrapped text so a deep match is visible in long fields.
+    const mirror=document.createElement('div'),style=getComputedStyle(area);
+    for(const key of ['font','lineHeight','letterSpacing','padding','border','boxSizing','tabSize'])mirror.style[key]=style[key];
+    Object.assign(mirror.style,{position:'fixed',left:'-100000px',top:'0',width:`${area.clientWidth}px`,
+      whiteSpace:'pre-wrap',overflowWrap:'anywhere',visibility:'hidden'});
+    mirror.setAttribute('aria-hidden','true');
+    mirror.append(document.createTextNode(area.value.slice(0,start)));
+    const marker=document.createElement('span');marker.textContent=snippet;mirror.append(marker);document.body.append(mirror);
+    area.scrollTop=Math.max(0,marker.offsetTop-area.clientHeight/3);mirror.remove();
+    status.textContent='已选中当前疑点，可在完整字段中直接修改。';
+  };
+  area.oninput=()=>{view.drafts.set(fieldId,area.value);failed=false;update();};
+  const persist=async()=>{
+    if(save.disabled)return;
+    view.drafts.set(fieldId,area.value);saving=true;failed=false;update();
+    const ok=await reviewRequest(job,'',{revision:view.data.review.revision,field_id:fieldId,final_text:area.value});
+    saving=false;
+    if(ok){
+      const scroll=area.scrollTop;
+      area.value=view.data.projection.fields[fieldId].editor_text;area.scrollTop=scroll;
+      failed=false;update();
+    }else{
+      failed=true;status.setAttribute('role','alert');status.textContent=view.error||'保存未完成，输入已保留，可重试。';update();
+    }
+  };
+  save.onclick=persist;
+  area.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){event.preventDefault();persist();}});
+  compare.onclick=()=>{original.hidden=!original.hidden;workspace.classList.toggle('is-comparing',!original.hidden);compare.textContent=original.hidden?'对照原文':'收起原文';compare.setAttribute('aria-expanded',String(!original.hidden));};
+  jump.onclick=locate;close.onclick=()=>dialog.close();
+  dialog.addEventListener('cancel',event=>{if(saving)event.preventDefault();});
+  dialog.addEventListener('close',()=>{
+    dialog.remove();activeReviewEditor=null;document.body.classList.remove('review-large-editor-open');renderJobs();
+    [...document.querySelectorAll('[data-review-edit-field]')].find(button=>button.dataset.reviewEditField===fieldId)?.focus();
+  },{once:true});
+  activeReviewEditor=dialog;document.body.append(dialog);document.body.classList.add('review-large-editor-open');
+  update();dialog.showModal();requestAnimationFrame(()=>{if(dialog.open)locate();});
+}
 function reviewState(id) {
   if (!reviewUI.has(id)) reviewUI.set(id,{open:false,attachmentsOpen:false,data:null,busy:false,error:'',feedback:null,saving:null,recent:new Set(),drafts:new Map(),page:0,filter:'pending'});
   return reviewUI.get(id);
@@ -18,7 +132,7 @@ function refreshDraftNotice(job,panel,apply,notice) {
   if(title)title.textContent=dirty.length?'上次导出未包含当前未保存输入':title.dataset.savedExportStatus;
   if(!dirty.length)return;
   notice.append(element('p','',`${dirty.length} 个字段有未保存改稿，尚未包含在导出文件中。请保存或放弃这些输入后再导出。`));
-  notice.append(element('p','partial-note',dirty.map(f=>`${f.sample_id||'ID缺失'} · ${f.name}`).join('；')));
+  notice.append(element('p','partial-note',dirty.map(f=>`${f.sample_id||'ID缺失'} · ${reviewFieldName(f.name)}`).join('；')));
   const locate=element('button','secondary-button','定位未保存改稿');
   locate.onclick=()=>{view.filter='unsaved';view.page=0;view.recent.clear();renderJobs();};
   const save=element('button','secondary-button',view.batchSaving?'正在保存全部改稿…':'保存全部改稿');
@@ -186,7 +300,7 @@ function renderReviewPanel(job) {
   for(const field of fields.slice(view.page*10,view.page*10+10)){
     const resolution=projection.fields[field.field_id];
     const group=element('article',`review-field${yellowRows.has(field.row_index)?' is-highlighted-caption':''}`);
-    group.append(element('h3','',`题目 ID：${field.sample_id||'原表缺失，须先补齐'} · ${field.name}`));
+    group.append(element('h3','',`题目 ID：${field.sample_id||'原表缺失，须先补齐'} · ${reviewFieldName(field.name)}`));
     for(const warning of reviewChecks.filter(w=>w.field_id===field.field_id))group.append(element('p','job-error review-postcheck',warning.message+(warning.excerpt?` ${warning.excerpt}`:'')));
     if(resolution.error){const warning=element('div','job-error',`此字段暂不能应用：${resolution.error}`);warning.setAttribute('role','alert');group.append(warning);}
     const issues=field.issue_ids.map(id=>byId.get(id));
@@ -196,7 +310,7 @@ function renderReviewPanel(job) {
       const postcheck=reviewChecks.some(w=>w.issue_id===issue.issue_id);
       item.append(element('strong','',`【${issue.label}】${postcheck?'人工稿已保存 · 需复核':reviewNames[issue.decision]}`),element('p','',issue.reason));
       item.append(element('p','partial-note',issue.operations.length?'处理方式：人工确认改正':'处理方式：可先生成 AI 推荐改稿，再人工确认'));
-      issue.excerpts.forEach((excerpt,index)=>item.append(sourceExcerpt(excerpt,issue.snippet,issue.excerpt_highlights?.[index])));
+      issue.excerpts.forEach((excerpt,index)=>item.append(reviewEditableText(sourceExcerpt(excerpt,issue.snippet,issue.excerpt_highlights?.[index]),job,field,issue)));
       const buttons=element('div','review-toolbar');
       for(const decision of ['approve','reject','keep','keep_highlight','defer','pending']){
         const label=decision==='pending'?'重置':reviewNames[decision];
@@ -251,15 +365,17 @@ function renderReviewPanel(job) {
     }
     if(!resolution.error){
       const finalView=element('details','review-final-text');
-      finalView.append(element('summary','',resolution.changed?'当前最终字段（导出使用此文本）':'当前最终字段（保留原文）'),element('pre','review-source',resolution.final_text.trim()));
+      finalView.append(element('summary','',resolution.changed?'当前最终字段（导出使用此文本）':'当前最终字段（保留原文）'),reviewEditableText(element('pre','review-source',resolution.final_text.trim()),job,field));
       group.append(finalView);
     }
     const subject=issues.find(issue=>issue.subject)?.subject;
     if(subject){const context=element('details','review-context');context.append(element('summary','','完整主体字段'),element('pre','review-source',subject));group.append(context);}
     const editor=element('details','review-editor');editor.append(element('summary','','人工填写最终完整字段'));
     editor.append(element('p','partial-note','修改整段字段正文，保留所需信息。保存后逐项复核原疑点；仍需核对的项目会单独提示。已标为误报或保留的结论继续保留。'));
-    editor.append(element('pre','review-source',field.original));
-    const area=document.createElement('textarea');area.setAttribute('aria-label',`题目 ${field.sample_id} ${field.name} 的人工最终稿`);
+    const originalView=element('details','review-context');
+    originalView.append(element('summary','','对照输入原文'),element('pre','review-source',field.original));editor.append(originalView);
+    const area=document.createElement('textarea');area.setAttribute('aria-label',`题目 ${field.sample_id} ${reviewFieldName(field.name)} 的人工最终稿`);
+    area.rows=18;
     area.value=view.drafts.get(field.field_id)??resolution.editor_text;
     editor.append(area);
     const save=element('button','secondary-button review-decision','确认本字段最终稿');

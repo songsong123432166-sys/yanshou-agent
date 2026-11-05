@@ -18,7 +18,8 @@ from captionqa.caption_qa_review_state import automatic_issue_ids, human_review_
 from captionqa.caption_qa_review_edits import approved_changes
 from captionqa.caption_qa_review_store import atomic_json, validate_binding
 
-LABELS = {"pipe_width":"标签分隔符格式", "time_range_break":"时间段分段", "missing_punctuation": "缺少段尾标点", "bare_tags": "编号标签格式",
+LABELS = {"tag_language":"英文标签转中文", "unknown_tag_language":"英文标签待确认",
+          "reference_out_of_range":"参考素材引用越界", "reference_inventory":"参考素材数量待确认", "pipe_width":"标签分隔符格式", "time_range_break":"时间段分段", "missing_punctuation": "缺少段尾标点", "bare_tags": "编号标签格式",
           "missing_subjects": "自然指令漏写已定义主体", "ghost_subjects": "引用未定义主体",
           "duplicate_defined_subjects": "主体重复定义", "skipped_numbering": "主体编号不连续",
           "symbol_format": "内容符号不成对", "label_separator": "多标签拼接符不规范",
@@ -115,7 +116,7 @@ class SafeAutoFixAgent(IdentificationAgent):
         changes = approved_changes(document)
         sections = qa.parse_caption_sections(caption)
         sections.update({f['name']: f['after'] for f in changes.get(0, [])})
-        revised = qa.rebuild_caption(caption, sections)
+        revised = qa.rebuild_caption(caption, sections, canonical_headers=True)
         if qa.parse_caption_sections(revised) != sections:
             return report
         report['revised_caption'] = revised
@@ -283,6 +284,10 @@ def _review_records(latest, *, caption_column, id_column, source_sha256):
                 from captionqa.caption_qa_time_layout import operations as time_layout_operations
                 issue['operations']=[op for op in time_layout_operations(name,sections[name])
                                      if any(op['anchor']==a for a,b in locations)]
+            if kind=='tag_language' and item.get('source')=='static':
+                from captionqa.caption_qa_metadata import operations as tag_operations
+                issue['operations']=tag_operations(name,sections[name])
+                issue['locations']=[(op['start'],op['end']) for op in issue['operations']]
             if kind=='pipe_width' and item.get('source')=='static':
                 from captionqa.caption_qa_labels import pipe_width_operations
                 issue['operations']=pipe_width_operations(name,sections[name])
@@ -366,6 +371,8 @@ def _review_records(latest, *, caption_column, id_column, source_sha256):
     enrich_candidates(document)
     from captionqa.caption_qa_labels import enrich_separator_fixes
     enrich_separator_fixes(document)
+    from captionqa.caption_qa_contract import enrich as enrich_contract
+    enrich_contract(document,latest)
     if automatic:
         _approve_automatic(document)
     return document

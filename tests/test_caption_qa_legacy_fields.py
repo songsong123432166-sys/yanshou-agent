@@ -15,7 +15,7 @@ import tests.test_caption_qa_web as web_tests
 
 PROMPT='以<图片1>中的机甲界面为基础，保留特写，生成一段科幻视频。'
 OLD=('## task_type\n人物参考｜视觉风格参考\n\n## subtask_type\n'+PROMPT+
-     '\n\n## brief_captions\n<图片1>：机甲界面。\n\n## similarity_tag\n实体/IP - 相同\n\n'
+     '\n\n## brief_captions\n<图片1>：机甲界面。\n\n## 视觉标签\n实体/IP - 相同\n\n'
      '## subject\n<主体1>：机器人。\n<主体2>：飞船。\n\n'
      '## 总结\n<主体1>追逐<主体2>。\n\n## natural_instruction\n'
      '0-4秒，<主体1>飞向<主体2>。\n')
@@ -59,7 +59,7 @@ class LegacyFieldTests(unittest.TestCase):
         self.assertTrue(qa.instruction_parser_outdated(OLD,3))
         self.assertFalse(qa.instruction_parser_outdated(OLD,5))
         canonical=OLD.replace('## subtask_type','## 提示').replace('## brief_captions','## 输入描述').replace(
-            '## subject','## 主体').replace('## similarity_tag','## video_similarity_tag').replace(
+            '## subject','## 主体').replace('## 视觉标签','## video_similarity_tag').replace(
             '## natural_instruction','## 自然指令').replace('## task_type','## 任务类型')
         self.assertFalse(qa.instruction_parser_outdated(canonical,1))
 

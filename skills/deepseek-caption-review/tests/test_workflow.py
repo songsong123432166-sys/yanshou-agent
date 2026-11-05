@@ -15,7 +15,7 @@ import _schema as schema
 
 
 def caption(instruction='<主体1>转头，面向镜头。'):
-    fields={'任务类型':'人物参考｜场景参考','提示':'生成一个人物转头的视频。','similarity_label':'yes',
+    fields={'任务类型':'人物参考｜场景参考','提示':'生成一个人物转头的视频。','similarity_label':'是',
         'video_similarity_tag':'实体 - 相同｜场景 - 相同','audio_similarity_tag':'无',
         '输入描述':'<图片1>：一名男子。','基调':'写实。','场景':'<场景1>：室内看台。',
         '主体':'<主体1>：<图片1>中的男子，身穿白色衬衫。','画面元素':'无。',
@@ -30,6 +30,14 @@ def suggestion(report,original,replacement,label='疑似病句',field='自然指
 
 
 class LocalTests(unittest.TestCase):
+    def test_three_chinese_titles_replace_english_titles_and_keep_literal_body(self):
+        expected=caption('<主体1>展示【similarity_label / video_similarity_tag / audio_similarity_tag】。')
+        raw=expected.replace('## 参考关系标签','## similarity_label').replace('## 视觉标签','## video_similarity_tag').replace('## 听觉标签','## audio_similarity_tag')
+        self.assertEqual(app.check(raw)['caption'],expected)
+        self.assertEqual(app.check(expected)['caption'],expected)
+        self.assertEqual(app.check(raw,check_only=True)['caption'],raw)
+        self.assertIn('【similarity_label / video_similarity_tag / audio_similarity_tag】',app.check(raw)['caption'])
+
     def test_user_delimiter_example_and_cut_boundaries_round_trip(self):
         text='0-8秒，<主体1>站立。第1秒，转头。第2秒，镜头切换。第3秒，挥手。'
         raw=caption(text).replace('人物参考｜场景参考','人物参考 | 场景参考').replace('实体 - 相同｜场景 - 相同','实体-相同 | 场景-相同')
@@ -87,7 +95,7 @@ class LocalTests(unittest.TestCase):
         raw=caption().replace('实体 - 相同｜场景 - 相同','实体/IP-相同，镜头/运镜-相同')
         fixed=app.check(raw)['caption'];self.assertIn('实体/IP - 相同｜镜头/运镜 - 相同',fixed)
         for value in ['音色-相同，环境中传来风声','音色-相同||音乐-相同']:
-            raw=caption().replace('## audio_similarity_tag\n无','## audio_similarity_tag\n'+value)
+            raw=caption().replace('## 听觉标签\n无','## 听觉标签\n'+value)
             report=app.check(raw)
             self.assertIn(value.replace('-',' - ').replace('|','｜'),report['caption']);self.assertTrue(report['findings'])
 
@@ -121,7 +129,7 @@ class LocalTests(unittest.TestCase):
         self.assertEqual(report['semantic_status'],'not_run');self.assertIsNone(report['sample_id'])
 
     def test_header_spacing_aliases_and_metadata_values(self):
-        raw=caption().replace('## 任务类型','##任务类型').replace('## video_similarity_tag','similarity_tag')
+        raw=caption().replace('## 任务类型','##任务类型').replace('## 视觉标签','similarity_tag')
         report=app.check(raw)
         self.assertEqual(report['caption'],caption());self.assertTrue(report['automatic_changes'])
 

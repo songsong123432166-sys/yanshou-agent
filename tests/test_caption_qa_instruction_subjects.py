@@ -28,7 +28,7 @@ class InstructionSubjectTests(unittest.TestCase):
                 text=complete.replace('## 自然指令\n',heading)
                 report=qa.CaptionQAAgent(dry_run=True).check(text)
                 self.assertEqual(report['subject_check']['missing_in_instruction'],[])
-                self.assertEqual(report['revised_caption'],text)
+                self.assertEqual(report['revised_caption'],text.replace('##natural_instruction','## natural_instruction').replace('##自然描述','## 自然描述').replace('##自然指令','## 自然指令'))
 
     def test_english_alias_keeps_real_missing_subjects_and_yields_to_current_name(self):
         text=CAPTION.replace('## 自然指令','## natural_instruction')
@@ -58,7 +58,7 @@ class InstructionSubjectTests(unittest.TestCase):
         payload=json.loads(client.calls[0]['messages'][1]['content'])
         self.assertIn('<主体3>挥手。',payload['caption_sections']['自然指令'])
         self.assertEqual(report['subject_check']['missing_subjects'],[])
-        self.assertEqual(report['revised_caption'],text)
+        self.assertEqual(report['revised_caption'],text.replace('##natural_instruction','## natural_instruction').replace('##自然描述','## 自然描述').replace('##自然指令','## 自然指令'))
 
     def test_parser_history_is_invalidated_only_for_previously_unknown_aliases(self):
         english=CAPTION.replace('## 自然指令','## natural_instruction')
@@ -76,7 +76,7 @@ class InstructionSubjectTests(unittest.TestCase):
             text=complete.replace('## 自然指令\n',heading)
             report=qa.CaptionQAAgent(dry_run=True).check(text)
             self.assertEqual(report['subject_check']['missing_in_instruction'],[])
-            self.assertEqual(report['revised_caption'],text)
+            self.assertEqual(report['revised_caption'],text.replace('##natural_instruction','## natural_instruction').replace('##自然描述','## 自然描述').replace('##自然指令','## 自然指令'))
             self.assertEqual(report['caption_parser_version'],qa.CAPTION_PARSER_VERSION)
 
     def test_alias_still_reports_real_missing_subjects_and_yields_to_current_name(self):
@@ -145,7 +145,7 @@ class InstructionSubjectTests(unittest.TestCase):
             text = CAPTION.replace("## 自然指令\n", heading)
             report = qa.CaptionQAAgent(dry_run=True).check(text)
             self.assertEqual(report["subject_check"]["missing_in_instruction"], ["<主体2>", "<主体3>"])
-            self.assertEqual(report["revised_caption"], text)
+            self.assertEqual(report["revised_caption"], text.replace('##自然指令','## 自然指令'))
 
     def test_scene_and_picture_elements_do_not_join_subject_coverage(self):
         sections = {"主体": "<主体1>：白衣女子。", "自然指令": "<主体1>挥手。",

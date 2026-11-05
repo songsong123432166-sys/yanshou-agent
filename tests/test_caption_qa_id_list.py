@@ -186,8 +186,8 @@ class IdListTests(unittest.TestCase):
         for prefix in ("batch1-58\n", '"', "\ufeff"):
             raw = prefix + "##任务类型\n人物参考\n" + GOOD.replace("## ", "##")
             report = qa.CaptionQAAgent(dry_run=True).check(raw)
-            self.assertEqual(report["status"], "PASS", prefix)
-            self.assertEqual(report["revised_caption"], raw)
+            self.assertEqual(report["status"], "AUTO_FIXED", prefix)
+            self.assertEqual(report["revised_caption"], raw.replace("##", "## "))
 
     def test_plain_and_mixed_section_headings_are_checked_without_reformatting(self):
         for text in (GOOD.replace("## ", ""), GOOD.replace("## 主体", "主体"),
@@ -200,8 +200,8 @@ class IdListTests(unittest.TestCase):
     def test_plain_metadata_stays_outside_checks(self):
         text = "任务类型\n视频1 主体9\nsimilarity_label\n主体88\n" + GOOD.replace("## ", "")
         report = qa.CaptionQAAgent(dry_run=True).check(text)
-        self.assertEqual(report["status"], "PASS")
-        self.assertEqual(report["revised_caption"], text)
+        self.assertEqual(report["status"], "AUTO_FIXED")
+        self.assertEqual(report["revised_caption"], text.replace("similarity_label\n", "参考关系标签\n"))
 
     def test_inline_instruction_and_empty_final_heading_are_not_format_errors(self):
         for text in (GOOD.replace("## 自然指令\n", "## 自然指令    "),

@@ -386,8 +386,8 @@ def parse_caption_sections(caption: str) -> dict[str, str]:
     return sections
 
 
-def rebuild_caption(original: str, sections: Mapping[str, str]) -> str:
-    """只替换字段正文；标题空格、原始顺序、换行和前导空白原样保留。"""
+def rebuild_caption(original: str, sections: Mapping[str, str], *, canonical_headers=False) -> str:
+    """替换字段正文；canonical_headers=True 时另统一标题名称与 ## 后空格。"""
     matches = _caption_headers(original)
     if not matches:
         return original
@@ -396,7 +396,11 @@ def rebuild_caption(original: str, sections: Mapping[str, str]) -> str:
     for index, (name, start, body_start) in enumerate(matches):
         end = matches[index + 1][1] if index + 1 < len(matches) else len(original)
         body=sections.get(name,original[body_start:end]) if index in selected else original[body_start:end]
-        result.extend((original[start:body_start],body))
+        prefix=original[start:body_start]
+        if canonical_headers:
+            from captionqa.caption_qa_metadata import header
+            prefix=header(prefix,name)
+        result.extend((prefix,body))
     return "".join(result)
 
 
@@ -468,15 +472,22 @@ def run_static_rules(sections: Mapping[str, str]) -> list[Issue]:
         for op in time_layout_findings(name,value):
             errors.append(_issue('static',name,op['heading'],'time_range_break',
                 TIME_LAYOUT_REASON,True))
+        from captionqa.caption_qa_metadata import operations as tag_operations, unknown_english, confirmation_reason, normalize as translate_tags
+        if tag_operations(name,value):
+            errors.append(_issue('static',name,value.strip(),'tag_language','按明确词表将英文标签翻译为中文，保留原维度、相似关系与顺序。',True))
+        tag_reason=confirmation_reason(name,value)
+        if tag_reason:
+            errors.append(_issue('static',name,value.strip(),'unknown_tag_language',tag_reason))
         if name in MULTI_LABEL_SECTIONS:
             from captionqa.caption_qa_labels import pipe_width_operations
             if pipe_width_operations(name,value) and not (separator_operations(name,value) and
                     (len([line for line in value.splitlines() if line.strip()])>1 or re.search(r'[、，,；;]',value))):
                 errors.append(_issue('static',name,value.strip(),'pipe_width',
                     '标签用全角竖线｜连接，竖线两侧不留空格；标签内 - 两侧各一个空格，标签文字保留。',True))
-            label_lines = [line.strip() for line in value.splitlines() if line.strip()]
+            label_view=translate_tags(name,value)
+            label_lines = [line.strip() for line in label_view.splitlines() if line.strip()]
             embedded_header = re.search(r"(?m)^[ \t]*#{2,6}[ \t]*\S", value)
-            if not embedded_header and (len(label_lines) > 1 or re.search(r"[、，,；;]|^[ \t]*[|｜]|[|｜][ \t]*$|[|｜][ \t]*[|｜]", value.strip())):
+            if not embedded_header and (len(label_lines) > 1 or re.search(r"[、，,；;]|^[ \t]*[|｜]|[|｜][ \t]*$|[|｜][ \t]*[|｜]", label_view.strip())):
                 empty_label = re.search(r"^[|｜]|[|｜]$|[|｜][ \t]*[|｜]", value.strip())
                 message = ("多标签列表存在空标签：请检查首尾多余竖线或连续竖线，不自动改写标签" if empty_label else
                            "多个标签应使用全角 ｜ 拼接，不用顿号、逗号、分号或换行；实体/IP、镜头/运镜内部的 / 保留，请人工核对")
@@ -515,7 +526,8 @@ def apply_static_fixes(sections: Mapping[str, str]) -> dict[str, str]:
     """确定性修复：完整标签间的分隔符、裸标签和缺失句末标点。"""
     fixed: dict[str, str] = OrderedDict()
     for name, value in sections.items():
-        value=normalize_separators(name,value)
+        from captionqa.caption_qa_metadata import normalize as translate_tags
+        value=normalize_separators(name,translate_tags(name,value))
         if name in LLM_TARGET_SECTIONS:
             value = _normalize_tags(value)
         if name not in PUNCTUATION_EXEMPT_SECTIONS:
@@ -889,10 +901,10 @@ class CaptionQAAgent:
                  model_name: str | None = None, api_key: str | None = None,
                  base_url: str | None = None, max_retries: int = 3,
                  timeout: float = 60.0, retry_delay: float = 1.0,
-                 total_timeout: float = 180.0) -> None:
+                 total_timeout: float | None = None) -> None:
         if not _valid_llm_parameters(max_retries, timeout, retry_delay):
             raise ValueError("额外重试须在 0-3 之间，超时为有限正数，退避时间非负")
-        if not math.isfinite(total_timeout) or total_timeout <= 0:
+        if total_timeout is not None and (not math.isfinite(total_timeout) or total_timeout <= 0):
             raise ValueError('单条 AI 检查总时限必须为有限正数')
         self.total_timeout = total_timeout
         self.dry_run = dry_run
@@ -1014,7 +1026,7 @@ class CaptionQAAgent:
         reasons.extend(i["suggestion"] for i in remaining)
         if semantic["need_human_review"]:
             reasons.append(semantic["human_review_reason"] or "LLM 标记需要人工复核")
-        revised = rebuild_caption(caption, merged)
+        revised = rebuild_caption(caption, merged, canonical_headers=True)
         review = bool(reasons)
         status = "NEED_HUMAN_REVIEW" if review else "AUTO_FIXED" if issues or revised != caption else "PASS"
         return QAReport(caption_parser_version=CAPTION_PARSER_VERSION,status=status, qa_scope="static_only" if self.dry_run else "static_and_semantic",
@@ -1093,7 +1105,8 @@ def _record_dict(record: Any, caption_field: str) -> dict[str, Any]:
 def _output_record(record: Any, error: str | None, agent: CaptionQAAgent,
                    caption_field: str, *, report: QAReport | None = None,
                    row_index: int | None = None,
-                   checkpoint: Mapping[str, Any] | None = None) -> dict[str, Any]:
+                   checkpoint: Mapping[str, Any] | None = None,
+                   reference_columns: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """只负责结果组装；异步路径传入 report，绝不回退到同步 LLM 调用。"""
     row = _record_dict(record, caption_field)
     if report is None:
@@ -1102,6 +1115,8 @@ def _output_record(record: Any, error: str | None, agent: CaptionQAAgent,
             report = agent.failure_report(caption if isinstance(caption, str) else "", error or f"缺少字符串字段 {caption_field}")
         else:
             report = agent.check(caption)
+    from captionqa.caption_qa_references import attach_report, detect_columns
+    report = attach_report(report, row, reference_columns if reference_columns is not None else detect_columns([row]))
     generated: dict[str, Any] = {"qa_status": report["status"], "qa_need_human_review": report["need_human_review"],
         "qa_human_review_reason": report["human_review_reason"],
         "qa_semantic_qa_performed": report["semantic_qa_performed"], "qa_scope": report["qa_scope"],
@@ -1256,6 +1271,10 @@ async def aprocess_batch(input_path: str | Path, output_path: str | Path, agent:
         if source.suffix.lower() not in (".xlsx", ".json", ".jsonl", ".csv") or target.suffix.lower() != ".jsonl":
             raise ValueError("异步断点批处理输入支持 .xlsx/.json/.jsonl/.csv，缓存输出必须为 .jsonl")
         selected_column = manual_column or detect_caption_column(source, sheet_name=sheet_name)
+        from captionqa.caption_qa_references import detect_columns as detect_reference_columns
+        from itertools import islice
+        reference_columns = detect_reference_columns(record for _,record,error in islice(
+            _indexed_input_records(source,sheet_name=sheet_name),50) if not error and isinstance(record,Mapping))
         context = _checkpoint_context(source, agent, selected_column, sheet_name=sheet_name)
         # 流式预检重复 id，防止同一轮产生重复请求或在恢复时静默漏掉重号记录。
         seen: set[str] = set()
@@ -1342,7 +1361,7 @@ async def aprocess_batch(input_path: str | Path, output_path: str | Path, agent:
                         if request_stats:
                             checkpoint['request_stats'] = request_stats
                         row = _output_record(record, error, agent, selected_column, report=report,
-                                             row_index=row_index, checkpoint=checkpoint)
+                                             row_index=row_index, checkpoint=checkpoint, reference_columns=reference_columns)
                         if used_column is None or error:
                             cell = _record_dict(record, selected_column).get(selected_column)
                             reason = ("input_record_error" if error else

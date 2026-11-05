@@ -5,13 +5,13 @@ demo-001,"## 任务类型
 ## 提示
 生成一个人物转头的视频。
 
-## similarity_label
-yes
+## 参考关系标签
+是
 
-## video_similarity_tag
+## 视觉标签
 实体-相同
 
-## audio_similarity_tag
+## 听觉标签
 无
 
 ## 输入描述
@@ -42,13 +42,13 @@ demo-002,"## 任务类型
 ## 提示
 生成一个人物转头的视频。
 
-## similarity_label
-yes
+## 参考关系标签
+是
 
-## video_similarity_tag
+## 视觉标签
 实体-相同
 
-## audio_similarity_tag
+## 听觉标签
 无
 
 ## 输入描述

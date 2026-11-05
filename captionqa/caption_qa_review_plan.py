@@ -17,7 +17,7 @@ from captionqa.caption_qa_review_state import highlighted_rows, automatic_issue_
 def document_fingerprint(document):
     # Export caches bind both the saved review and the resolver contract.
     # A code fix must not reuse an older file produced by a previous resolver.
-    raw = json.dumps({'resolver_version':'review-export-v5', 'document':document},
+    raw = json.dumps({'resolver_version':'review-export-v6-chinese-ref', 'document':document},
                      sort_keys=True, ensure_ascii=False, separators=(',', ':'))
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
@@ -89,10 +89,17 @@ def compile_review(document, records):
     for field in document['fields']:
         grouped.setdefault(field['row_index'], []).append(field['field_id'])
     highlights = highlighted_rows(document)
+    # Include captions with only heading changes, even when they had no findings.
+    for index,record in records.items():
+        caption=record.get(document['caption_column'])
+        if qa.is_human_caption(caption):
+            try:qa.parse_caption_sections(caption)
+            except ValueError:continue
+            grouped.setdefault(index,[])
     rows, rechecks = [], []
     for index, field_ids in grouped.items():
         fields = [resolved[key] for key in field_ids]
-        sample_id = fields[0].sample_id
+        sample_id = fields[0].sample_id if fields else str(records[index].get(document['id_column']) or '')
         original, final, errors = '', '', [f.error for f in fields if f.error]
         try:
             if index not in records:
@@ -109,14 +116,15 @@ def compile_review(document, records):
                         raise ValueError('字段原文已变化，拒绝覆盖。')
                 updated = dict(sections)
                 updated.update({field.name:field.final_text for field in changed})
-                if changed:
-                    final = qa.rebuild_caption(original, updated)
-                    reparsed = qa.parse_caption_sections(final)
-                    if list(reparsed) != list(sections) or any(reparsed.get(k) != v for k,v in updated.items()):
-                        raise ValueError('改稿改变了字段标题或边界，请仅填写字段正文。')
+                final = qa.rebuild_caption(original, updated, canonical_headers=True)
+                reparsed = qa.parse_caption_sections(final)
+                if list(reparsed) != list(sections) or any(reparsed.get(k) != v for k,v in updated.items()):
+                    raise ValueError('改稿改变了字段标题或边界，请仅填写字段正文。')
                 if final != original or index in highlights:
+                    from captionqa.caption_qa_references import findings as ref_findings
+                    refs,_,_=ref_findings(qa.parse_caption_sections(final),records[index],document.get('reference_columns',{}))
                     rechecks.append({'sample_id':sample_id, 'row_index':index,
-                        'remaining_static_errors':qa.run_static_rules(qa.parse_caption_sections(final)),
+                        'remaining_static_errors':qa.run_static_rules(qa.parse_caption_sections(final))+refs,
                         'semantic_rechecked':False})
         except ValueError as exc:
             errors.append(str(exc))
@@ -142,6 +150,13 @@ def compile_review(document, records):
             audit.append({'题目 ID':field['sample_id'], '字段':field['name'], '修改来源':field['mode'],
                           '修改前':field['original'], '修改后':field['after'], 'field_id':field['field_id'],
                           'source_sheet':field['source_sheet'], 'source_row':field['source_row']})
+    for row in rows:
+        if not row.errors and row.final_text!=row.original:
+            old=[row.original[a:b] for _,a,b in qa._caption_headers(row.original)]
+            new=[row.final_text[a:b] for _,a,b in qa._caption_headers(row.final_text)]
+            if old!=new:
+                audit.append({'题目 ID':row.sample_id,'字段':'字段标题','修改来源':'automatic_rule',
+                    '修改前':''.join(old),'修改后':''.join(new),'field_id':''})
     from captionqa.caption_qa_review_checks import assess_review
     review_checks=assess_review(document,fields,rows)
     return ReviewPlan(document['revision'], document_fingerprint(document), document['source_sha256'],

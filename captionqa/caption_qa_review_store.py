@@ -75,8 +75,14 @@ class ReviewStore:
             layout=enrich_time_layout(document,source_records(document,self.input_source))
             from captionqa.caption_qa_labels import enrich_pipe_width, PIPE_POLICY
             pipes=enrich_pipe_width(document,source_records(document,self.input_source))
-            if added or separators or contextual or layout or pipes:
+            from captionqa.caption_qa_contract import enrich as enrich_contract, POLICY as CONTRACT_POLICY
+            previous_policy=document.get('format_policy')
+            contract=enrich_contract(document,source_records(document,self.input_source))
+            if added or separators or contextual or layout or pipes or contract or previous_policy!=CONTRACT_POLICY:
                 document['revision'] += 1
+                if contract or previous_policy!=CONTRACT_POLICY:
+                    document['events'].append({'revision':document['revision'],'decision':'metadata_reference_checks',
+                        'policy':CONTRACT_POLICY,'issue_ids':contract,'reason':'中文标签、标题格式及 ref 引用校验；已有人工决定和定稿保留。'})
                 if contextual:
                     document['events'].append({'revision':document['revision'],
                         'decision':'candidate_context_normalized', 'issue_ids':contextual,

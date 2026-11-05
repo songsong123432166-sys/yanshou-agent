@@ -1,5 +1,5 @@
 'use strict';
-const fieldState={file:null,busy:false,jobs:[],signature:'',expanded:new Map()};
+const fieldState={file:null,busy:false,jobs:[],signature:'',expanded:new Map(),history:{seen:new Set(),current:new Set(),initialized:false}};
 function setFieldPanelExpanded(expanded){
   $('#field-panel-body').hidden=!expanded;
   $('#field-panel-toggle').setAttribute('aria-expanded',String(expanded));
@@ -36,12 +36,13 @@ async function fieldAction(job,path,body){
 function renderFieldJobs(){
   const active=fieldState.jobs.filter(job=>['queued','running'].includes(job.status)).length;
   $('#field-panel-status').textContent=active?`${active} 个任务处理中`:fieldState.jobs.length?`${fieldState.jobs.length} 条记录`:'独立于内容质检';
-  $('#field-jobs').replaceChildren(...fieldState.jobs.map(job=>{
+  const current=partitionHistoryJobs(fieldState.jobs,fieldState.history);
+  const cards=fieldState.jobs.map(job=>{
     const card=element('article','field-job');card.dataset.fieldJobId=job.id;
     const details=element('details','field-job-details');details.open=fieldState.expanded.get(job.id)??false;
     const heading=element('summary','field-job-summary');
     const overview=element('div');overview.append(element('h3','',job.name));
-    const status={queued:'等待处理',running:'正在整理字段',done:'字段规范完成',partial:'已输出，部分题目需确认',failed:'处理未完成'}[job.status]||job.status;
+    const status=job.status==='running'&&job.column_detection==='identifying'?'AI 正在识别 Caption 列':{queued:'等待处理',running:'正在整理字段',done:'字段规范完成',partial:'已输出，部分题目需确认',failed:'处理未完成'}[job.status]||job.status;
     overview.append(element('p','field-job-meta',`${status} · ${job.processed} / ${job.total} 条`));
     const counts=job.counts||{};
     overview.append(element('p','field-job-stat',`${job.outdated_schema?'旧规则 · ':''}已规范 ${counts.already_standard||0} · 已调整 ${counts.converted||0} · 需确认 ${counts.needs_confirmation||0}${counts.failed?' · 失败 '+counts.failed:''}${job.missing_field_count?' · 缺字段 '+job.missing_field_count:''}`));
@@ -54,10 +55,10 @@ function renderFieldJobs(){
     });
     const body=element('div','field-job-body');
     body.append(element('p','',`${job.outdated_schema?'旧规则统计：':''}字段已规范 ${counts.already_standard||0} · 字段已调整 ${counts.converted||0} · 需确认 ${counts.needs_confirmation||0} · 失败 ${counts.failed||0} · 跳过 ${counts.skipped||0}`));
-    if(job.outdated_schema)body.append(element('p','partial-note','此记录使用旧字段规则，统计及导出文件尚未更新。当前标准保留 video_similarity_tag，## 后须有一个半角空格，每个字段内容结束后留一个空行；新版还可处理 task_type 已写子任务标签、subtask_type 错放生成要求的情况。可按当前设置重试。'));
+    if(job.outdated_schema)body.append(element('p','partial-note','此记录使用旧字段规则，统计及导出文件尚未更新。当前标准使用中文标签标题“参考关系标签、视觉标签、听觉标签”，已知英文标签值转为中文，## 后须有一个半角空格，每个字段内容结束后留一个空行；新版还可处理 task_type 已写子任务标签、subtask_type 错放生成要求的情况。可按当前设置重试。'));
     if(job.legacy_reference_count)body.append(element('p','partial-note',`旧任务类型为“参考”：${job.legacy_reference_count} 条，已单独标记 ID。`));
     if(job.missing_field_count)body.append(element('p','partial-note',`原始缺字段：${job.missing_field_count} 条，已标记 ID；已补齐的记录也保留标记。`));
-    if(job.selected_column)body.append(element('p','partial-note',`仅处理 ${job.selected_sheet?job.selected_sheet+' / ':''}${job.selected_column}；其他列保留。`));
+    if(job.selected_column)body.append(element('p','partial-note',`仅处理 ${job.selected_sheet?job.selected_sheet+' / ':''}${job.column_display||job.selected_column}${job.column_detection==='ai'?' · AI 辅助识别':''}；其他列保留。`));
     if(job.error)body.append(element('p','job-error',job.error));
     if(['failed','partial'].includes(job.status)||job.outdated_schema){
       const retry=element('button','secondary-button','按当前字段设置重试');
@@ -71,7 +72,10 @@ function renderFieldJobs(){
     if(buttons.childNodes.length){body.append(buttons,element('code','',job.outputs.corrected));}
     details.append(body);card.append(details);
     return card;
-  }));
+  });
+  $('#field-active-jobs').replaceChildren(...cards.filter((card,index)=>current[index]));
+  $('#field-jobs').replaceChildren(...cards.filter((card,index)=>!current[index]));
+  updateHistoryDisclosure('field-history',current.filter(value=>!value).length);
 }
 const fieldDrop=$('#field-dropzone');
 fieldDrop.onclick=()=>{if(!fieldState.busy)$('#field-file').click();};

@@ -22,6 +22,10 @@ def resolve_field(document, field, issues):
         for issue in selected:
             if issue.get('separator_policy') not in {None,SEPARATOR_POLICY,LEGACY_POLICY}:
                 raise ValueError('标签分隔符规则版本未知，已停止回填。')
+            if issue['kind']=='tag_language':
+                from captionqa.caption_qa_metadata import operations as tag_operations
+                if issue['operations']!=tag_operations(field['name'],old):
+                    raise ValueError('中文标签翻译与原文或明确词表不一致，已停止回填。')
             if issue['kind']=='pipe_width' and issue['operations'] not in [pipe_width_operations(field['name'],old),legacy_pipe_width_operations(field['name'],old)]:
                 raise ValueError('竖线格式修改与原文不一致，已停止回填。')
             if issue.get('separator_policy')==LEGACY_POLICY and issue['operations']!=legacy_separator_operations(field['name'],old):

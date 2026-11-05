@@ -87,6 +87,18 @@ def detect_column(source,sheet=None,column=None):
     first=next(iter(iter_table_records(source,sheet_name=sheet)),(None,{},None))[1]
     ranked=[(max(score,qa._caption_column_priority(first.get(name))),name) if not qa._excluded_caption_column(name)
             else (0,name) for score,name in ranked]
+    # A merged group heading such as 人工标注 may sit above a yes/no flag,
+    # while the real Caption is in a neighbouring second-row caption column.
+    # Validate named candidates against field content before applying priority.
+    candidates={name for score,name in ranked if score>0}
+    secondary_header=any(qa._caption_column_priority(first.get(name)) for name in candidates)
+    if secondary_header and len(candidates)>1:
+        populated=set()
+        for _,row,error in iter_table_records(source,sheet_name=sheet):
+            if error:continue
+            populated.update(name for name in candidates-populated if recognizable(row.get(name)))
+            if populated==candidates:break
+        if populated:ranked=[(score,name) for score,name in ranked if name in populated]
     best=max((score for score,_ in ranked),default=0)
     choices=[name for score,name in ranked if score==best and score>0]
     if len(choices)!=1:raise ValueError('未找到唯一的Caption/人标列，请在字段规范设置中明确填写列名；不会检查机标或备注列。')
@@ -109,17 +121,20 @@ def select_table(source,column=None,sheet=None):
     book=_openpyxl().load_workbook(source,read_only=True,data_only=False)
     try:names=[sheet] if sheet else book.sheetnames
     finally:book.close()
-    choices=[]
+    choices=[];reasons=[]
     for name in names:
         try:
             found=detect_column(source,name,column)
             if any(recognizable(row.get(found)) for _,row,error in iter_table_records(source,sheet_name=name) if not error):
                 choices.append((name,found))
-        except ValueError:
+            else:reasons.append(f'“{name}”：识别的“{found}”列没有可整理字段的 Caption')
+        except ValueError as error:
             if sheet:raise
+            reasons.append(f'“{name}”：{error}')
     ordinary=[v for v in choices if not any(word in v[0] for word in ('示例','模板','说明','参考'))]
     choices=ordinary or choices
-    if len(choices)!=1:raise ValueError('未找到唯一的数据工作表，请在字段规范设置中填写工作表名称。')
+    if not choices:raise ValueError('未找到含可识别 Caption 的数据工作表。'+'；'.join(reasons))
+    if len(choices)>1:raise ValueError('发现多个含 Caption 数据的工作表：'+'、'.join('“'+name+'”' for name,_ in choices)+'。请在字段规范设置中填写工作表名称。')
     return choices[0]
 
 
@@ -266,8 +281,29 @@ class FieldJobs:
     def process(self,identifier):
         job=self.jobs[identifier];folder=self.root/identifier;source=folder/('input'+Path(job['name']).suffix.lower())
         try:
-            with self.lock:job.update(status='running',error='',outputs={},schema_version=VERSION);self.save()
-            sheet,column=select_table(source,job['column'],job['sheet'])
+            with self.lock:job.update(status='running',error='',outputs={},schema_version=VERSION,
+                                      column_detection='rules',selection_model_requests=0);self.save()
+            try:
+                sheet,column=select_table(source,job['column'],job['sheet'])
+            except ValueError:
+                # An explicit user column always wins; do not override it with AI.
+                if job['column']:raise
+                from captionqa.caption_column_selector import choose_caption_with_ai
+                from captionqa.run_mimo import MODEL
+                with self.lock:job['column_detection']='identifying';self.save()
+                def requested():
+                    with self.lock:
+                        job['selection_model_requests']=1
+                        job['model_requests']=1
+                        self.save()
+                async def identify():
+                    client=self.client_factory()
+                    try:
+                        return await choose_caption_with_ai(source,client=client,model=MODEL,
+                            sheet=job['sheet'],on_request=requested)
+                    finally:await client.close()
+                sheet,column=asyncio.run(identify())
+                with self.lock:job['column_detection']='ai'
             id_column=select_id_column(source,sheet,job['id_column'])
             if source.suffix in {'.json','.jsonl'}:
                 from captionqa.caption_qa_review_io import _unique_json
@@ -284,8 +320,14 @@ class FieldJobs:
                 if results[index]['status']=='failed':del results[index]
                 else:mark_source_fields(results[index])
             duplicates=Counter(str(row.get(id_column)) for _,row,error in rows if not error and row.get(id_column) not in (None,''))
-            with self.lock:job.update(total=len(rows),selected_column=column,selected_sheet=sheet,id_column=id_column,
+            location=column
+            if source.suffix=='.xlsx':
+                from openpyxl.utils import get_column_letter
+                location=get_column_letter(table_columns(source,sheet_name=sheet).index(column)+1)+'列（Caption）'
+            elif source.suffix=='.csv':location=f'第 {table_columns(source,sheet_name=sheet).index(column)+1} 列（Caption）'
+            with self.lock:job.update(total=len(rows),selected_column=column,column_display=location,selected_sheet=sheet,id_column=id_column,
                                       processed=len(results),counts=dict(Counter(r['status'] for r in results.values())),
+                                      model_requests=job['selection_model_requests']+sum(r['model_requests'] for r in results.values()),
                                       legacy_reference_count=sum(r.get('legacy_reference',False) for r in results.values()),
                                       missing_field_count=sum(bool(r.get('missing_fields')) for r in results.values()))
             async def run():
@@ -306,7 +348,7 @@ class FieldJobs:
                         else:result=await normalize(text,client=client,model=MODEL,task_mapping=job['task_mapping'])
                         results[key]=mark_source_fields({**result,'sample_id':sample_id})
                         with self.lock:
-                            job.update(processed=len(results),counts=dict(Counter(r['status'] for r in results.values())),model_requests=sum(r['model_requests'] for r in results.values()),
+                            job.update(processed=len(results),counts=dict(Counter(r['status'] for r in results.values())),model_requests=job['selection_model_requests']+sum(r['model_requests'] for r in results.values()),
                                        legacy_reference_count=sum(r.get('legacy_reference',False) for r in results.values()),
                                        missing_field_count=sum(bool(r.get('missing_fields')) for r in results.values()))
                             atomic(checkpoint,{'fingerprint':fingerprint,'results':results});self.save()

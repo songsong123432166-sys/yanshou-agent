@@ -39,7 +39,13 @@ def assess_review(document, fields, rows):
         message = ''
         if issue.get('origin') == 'static':
             if row.row_index not in static:
-                static[row.row_index] = qa.run_static_rules(qa.parse_caption_sections(row.final_text))
+                sections=qa.parse_caption_sections(row.final_text)
+                static[row.row_index] = qa.run_static_rules(sections)
+                from captionqa.caption_qa_references import findings
+                inventory=document.get('reference_inventory',{}).get(str(row.row_index))
+                if inventory:
+                    refs,_,_=findings(sections,inventory['record'],document.get('reference_columns',{}))
+                    static[row.row_index].extend(refs)
             for finding in static[row.row_index]:
                 if finding['issue_type'] != issue['kind']:
                     continue
@@ -80,4 +86,18 @@ def assess_review(document, fields, rows):
             warnings.append({'field_id':field.field_id, 'sample_id':field.sample_id, 'field':field.name,
                 'message':f'人工稿中存在连续标点「{match[0]}」，请核对；程序不会覆盖人工稿。',
                 'excerpt':field.final_text[max(0,match.start()-25):match.end()+25]})
+    # Catch references introduced by a saved manual draft, even if the
+    # original model/static issue concerned a different part of that field.
+    from captionqa.caption_qa_references import findings as reference_findings
+    for row in rows:
+        inventory=document.get('reference_inventory',{}).get(str(row.row_index))
+        if row.errors or not inventory:continue
+        refs,_,_=reference_findings(qa.parse_caption_sections(row.final_text),inventory['record'],document.get('reference_columns',{}))
+        for ref in refs:
+            if any(i['row_index']==row.row_index and i['field']==ref['section'] and
+                   i['kind']==ref['issue_type'] and i['snippet']==ref['original_snippet'] for i in document['issues']):continue
+            field=next((f for f in fields if f.row_index==row.row_index and f.name==ref['section']),None)
+            if field:
+                warnings.append({'field_id':field.field_id,'sample_id':field.sample_id,'field':field.name,
+                    'message':ref['suggestion'],'excerpt':ref['original_snippet']})
     return warnings

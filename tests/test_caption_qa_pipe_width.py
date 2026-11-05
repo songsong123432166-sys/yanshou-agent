@@ -54,7 +54,8 @@ class PipeExportTests(unittest.TestCase):
 
     def test_review_all_keeps_the_original_until_the_width_fix_is_approved(self):
         doc=self.build(automatic=False);issue=next(i for i in doc['issues'] if i['kind']=='pipe_width')
-        self.assertFalse(self.plan(doc).captions)
+        self.assertIn('音色-相同|环境音-相同',self.plan(doc).rows[0].final_text)
+        self.assertIn('## 听觉标签',self.plan(doc).rows[0].final_text)
         doc=decide(doc,revision=0,issue_id=issue['issue_id'],decision='approve')
         self.assertIn('音色 - 相同｜环境音 - 相同',self.plan(doc).rows[0].final_text)
 

@@ -17,12 +17,16 @@ def _separator_operations(field, text, legacy=False):
     """Only replace separators; keep label spelling, order and all other text."""
     if field not in FIELDS or not isinstance(text,str) or not text.strip():return []
     leading=len(text)-len(text.lstrip());body=text.strip()
-    matches=list(SEPARATOR.finditer(body))
+    # The comma in an English relation is part of its value. Mask it with
+    # one character so original operation offsets remain valid.
+    view=re.sub(r'Same[ \t]+Category,[ \t]*Different[ \t]+Instance',lambda m:m[0].replace(',', '\ufff0'),body,flags=re.I)
+    matches=list(SEPARATOR.finditer(view))
     if not matches:return []
-    labels=SEPARATOR.split(body)
+    labels=SEPARATOR.split(view)
     if any(not label.strip() for label in labels):return []
     def valid(label):
-        value=label.strip()
+        from captionqa.caption_qa_metadata import normalize as translate_tags
+        value=translate_tags(field,label.replace('\ufff0',',').strip())
         if field in {'任务类型','task_type','subtask_type'}:
             return re.sub(r'\s*-\s*','-',value) in TASK_LABELS
         dimensions=AUDIO if field=='audio_similarity_tag' else VISUAL if field in {'video_similarity_tag','similarity_tag'} else VISUAL+'|'+AUDIO

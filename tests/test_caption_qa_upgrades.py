@@ -151,9 +151,9 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
     def test_llm_receives_all_and_only_whitelisted_sections(self) -> None:
         raw = (
             "## 任务类型 \n人物参考|造型参考\n"
-            "## similarity_label\n yes  \n"
-            "## video_similarity_tag\n实体/IP - 相同\n"
-            "## audio_similarity_tag\n无声音\n"
+            "## 参考关系标签\n 是  \n"
+            "## 视觉标签\n实体/IP - 相同\n"
+            "## 听觉标签\n无声音\n"
             "## 提示\n参考<视频1>生成视频。\n"
             "## 输入描述\n<视频1>：女子奔跑。\n"
             "## 基调\n写实。\n"
@@ -179,9 +179,9 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
     def test_exempt_metadata_is_preserved_and_frame_elements_only_gain_period(self) -> None:
         metadata = (
             "## 任务类型 \r\n  视频1 | 主体7  \r\n\r\n"
-            "## similarity_label \r\n yes\t \r\n"
-            "## video_similarity_tag\r\n视频1|场景3 \r\n"
-            "## audio_similarity_tag\r\n无声音\r\n"
+            "## 参考关系标签 \r\n 是\t \r\n"
+            "## 视觉标签\r\n视频1|场景3 \r\n"
+            "## 听觉标签\r\n无声音\r\n"
             "## 画面元素\r\n主体3和图片2；<场景1>：<场景1>：原样  \r\n"
         )
         raw = metadata + GOOD
@@ -194,7 +194,7 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
         self.assertEqual([i["issue_type"] for i in report["issues"]], ["pipe_width", "pipe_width", "missing_punctuation"])
 
     def test_metadata_format_errors_are_not_leaked_through_request_errors(self) -> None:
-        raw = "## 画面元素\n<画面元素1>：右上角【台标】。\n## similarity_label\nPRIVATE_META\n" + GOOD
+        raw = "## 画面元素\n<画面元素1>：右上角【台标】。\n## 参考关系标签\nPRIVATE_META\n" + GOOD
         client = FakeSyncClient(semantic_reply())
         qa.CaptionQAAgent(client=client).check(raw)
         payload = client.calls[0]["messages"][1]["content"]
@@ -202,7 +202,7 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
         self.assertNotIn('PRIVATE_META',payload)
 
     def test_llm_cannot_modify_metadata_via_unsolicited_response(self) -> None:
-        raw = "## similarity_label\n yes \n" + GOOD
+        raw = "## 参考关系标签\n 是 \n" + GOOD
         client = FakeSyncClient(semantic_reply(corrected_sections={"similarity_label": "no"}))
         report = qa.CaptionQAAgent(client=client, max_retries=0).check(raw)
         self.assertEqual(report["status"], "NEED_HUMAN_REVIEW")
@@ -210,7 +210,7 @@ class StaticAndMergeUpgradeTests(unittest.TestCase):
 
     def test_partial_corrected_sections_preserve_untouched_fields_and_order(self) -> None:
         raw = (
-            "## similarity_label \n yes \n\n"
+            "## 参考关系标签 \n 是 \n\n"
             "## 输入描述\n<视频1>：眼晴特写。\n" + GOOD +
             "## 画面元素\n 无 \n"
         )

@@ -1,7 +1,8 @@
 """Shared field schema snapshot. No model client or network operations."""
 import re
+from _metadata import TITLES, ALIASES as TAG_ALIASES, normalize as translate_tags
 
-VERSION=8
+VERSION=9
 
 HEADER_PREFIX='## '
 
@@ -9,6 +10,8 @@ FIELDS=('任务类型','提示','similarity_label','video_similarity_tag','audio
         '输入描述','基调','场景','主体','画面元素','总结','自然指令')
 
 ALIASES={name:name for name in FIELDS}
+
+ALIASES.update(TAG_ALIASES)
 
 ALIASES.update(task_type='_task',subtask_type='_subtask',brief_captions='输入描述',subject='主体',
                natural_instruction='自然指令',similarity_tag='video_similarity_tag',
@@ -54,7 +57,7 @@ def parse(text):
         match=None if any(a<=position<b for a,b in spans) else PATTERN.fullmatch(value)
         if match:
             flush();alias=match['name'];current=ALIASES[alias]
-            headers.append({'field':current,'alias':alias,'canonical':value.rstrip(' \t')==HEADER_PREFIX+current,
+            headers.append({'field':current,'alias':alias,'canonical':value.rstrip(' \t')==HEADER_PREFIX+TITLES.get(current,current),
                             'start':start,'end':offset,'line':line,'inline':match['inline']})
             if match['inline']:raw=match['inline']+'\n'
         else:
@@ -68,7 +71,7 @@ def is_legacy_reference(text):
     return any(block['field']=='_task' and block['text'].strip()=='参考' for block in parse(text)['blocks'])
 
 def render(fields):
-    text='\n\n'.join(HEADER_PREFIX+name+'\n'+fields.get(name,'').strip() for name in FIELDS)+'\n'
+    text='\n\n'.join(HEADER_PREFIX+TITLES.get(name,name)+'\n'+translate_tags(name,fields.get(name,'')).strip() for name in FIELDS)+'\n'
     return space_fields(text)
 
 def space_fields(text,parsed=None):
@@ -103,14 +106,14 @@ def local_caption(text,parsed,task):
         body=text[header['end']:end]
         if header['inline'] is not None:body=header['inline']+newline+body
         if header['alias'] in {'brief_captions','subject'}:body=_body(field,body)
-        title=header['line'] if header['canonical'] else HEADER_PREFIX+field+(newline if header['line'].endswith(('\r','\n')) or body else '')
-        sections[field]=title+body
+        title=header['line'] if header['canonical'] else HEADER_PREFIX+TITLES.get(field,field)+(newline if header['line'].endswith(('\r','\n')) or body else '')
+        sections[field]=title+translate_tags(field,body)
     if '任务类型' not in sections:
         sections['任务类型']=HEADER_PREFIX+'任务类型'+newline+task+newline+newline
     chunks=[]
     for field in FIELDS:
         if field not in sections:
-            sections[field]=HEADER_PREFIX+field+newline+newline
+            sections[field]=HEADER_PREFIX+TITLES.get(field,field)+newline+newline
         chunk=sections[field]
         if chunks and not chunks[-1].endswith(('\n','\r')):chunks[-1]+=newline
         chunks.append(chunk)

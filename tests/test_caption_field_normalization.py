@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 from zipfile import ZipFile
 
-from captionqa.caption_field_schema import VERSION, FIELDS, parse, render, normalize, apply_plan, task_value, is_legacy_reference
+from captionqa.caption_field_schema import VERSION, FIELDS, TITLES, parse, render, normalize, apply_plan, task_value, is_legacy_reference
 from captionqa.caption_field_jobs import FieldJobs, detect_column, select_id_column, write_copy, missing_fields
 from tests.test_caption_qa_upgrades import sdk_response
 
@@ -81,7 +81,7 @@ class SchemaTests(unittest.IsolatedAsyncioTestCase):
         prompt='以<图片1>的机甲UI界面为基础，去除外层大框UI，生成一段包含多视角镜头切换的科幻动画视频。'
         expected=STANDARD.replace('人物参考','人物参考｜视觉风格参考').replace('## 提示\n\n','## 提示\n'+prompt+'\n\n')
         original=expected.replace('## 任务类型','## task_type').replace('## 提示','## subtask_type').replace(
-            '## video_similarity_tag','## similarity_tag').replace('## 输入描述','## brief_captions').replace('## 主体','## subject')
+            '## 视觉标签','## similarity_tag').replace('## 输入描述','## brief_captions').replace('## 主体','## subject')
         client=PlanClient();result=await normalize(original,client=client)
         self.assertEqual(result['status'],'converted');self.assertEqual(result['caption'],expected)
         self.assertIn('生成要求归入提示',result['tags']);self.assertEqual(client.calls,[])
@@ -144,8 +144,8 @@ class SchemaTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_current_visual_header_and_metadata_are_preserved(self):
         text=STANDARD.replace('人物参考','人物参考|场景参考').replace('Yes','yes').replace(
-            '## video_similarity_tag\n','## video_similarity_tag\n实体-相同|场景-相同\n').replace(
-            '## audio_similarity_tag\n','## audio_similarity_tag\n无\n')
+            '## 视觉标签\n','## 视觉标签\n实体-相同|场景-相同\n').replace(
+            '## 听觉标签\n','## 听觉标签\n无\n')
         result=await normalize(text,client=PlanClient())
         self.assertEqual(result['status'],'already_standard')
         self.assertEqual(result['caption'],text);self.assertEqual(result['model_requests'],0)
@@ -155,8 +155,8 @@ class SchemaTests(unittest.IsolatedAsyncioTestCase):
         body='  0-6秒，<主体1>念道{腰下剑...}。第1秒，镜头前推。  \n\n第3秒，画面有【## 提示】。\n第4秒，<雷声>响起。  '
         original=STANDARD.replace('<主体1>站立。',body).replace('## 任务类型','##任务类型',1)
         expected=original.replace('##任务类型','## 任务类型',1)
-        original=original.replace('## video_similarity_tag\n','## video_similarity_tag  \n')
-        expected=expected.replace('## video_similarity_tag\n','## video_similarity_tag  \n')
+        original=original.replace('## 视觉标签\n','## 视觉标签  \n')
+        expected=expected.replace('## 视觉标签\n','## 视觉标签  \n')
         result=await normalize(original)
         self.assertEqual(result['status'],'converted');self.assertEqual(result['caption'],expected)
         self.assertEqual(result['tags'],['标题规范']);self.assertEqual(result['model_requests'],0)
@@ -192,7 +192,7 @@ class SchemaTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_legacy_visual_alias_changes_only_its_header_line(self):
         expected=STANDARD.replace('<主体1>站立。','  第1秒，镜头左摇。第2秒，切换。\n\n{Hello, world.}。 ')
-        original=expected.replace('## video_similarity_tag','## similarity_tag')
+        original=expected.replace('## 视觉标签','## similarity_tag')
         result=await normalize(original)
         self.assertEqual(result['caption'],expected);self.assertEqual(result['status'],'converted')
         self.assertIn('视觉标签字段更名',result['tags'])
@@ -203,17 +203,17 @@ class SchemaTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['status'],'already_standard');self.assertEqual(result['caption'],original)
 
     async def test_reordering_keeps_each_field_body_exactly(self):
-        pieces=['## '+field+'\n  '+field+'首句。第二句。 \n\n' for field in FIELDS]
+        pieces=['## '+TITLES.get(field,field)+'\n  '+field+'首句。第二句。 \n\n' for field in FIELDS]
         pieces[0]='## 任务类型\n人物参考|场景参考\n\n'
         expected=''.join(pieces);pieces[5],pieces[6]=pieces[6],pieces[5]
         result=await normalize(''.join(pieces))
         self.assertEqual(result['caption'],expected);self.assertIn('字段顺序整理',result['tags'])
 
     async def test_missing_metadata_is_added_empty_without_reformatting_other_bodies(self):
-        original=STANDARD.replace('## similarity_label\nYes\n\n','').replace('<主体1>站立。','首句。第二句。\n\n末句。')
+        original=STANDARD.replace('## 参考关系标签\n是\n\n','').replace('<主体1>站立。','首句。第二句。\n\n末句。')
         result=await normalize(original)
-        self.assertEqual(result['status'],'converted');self.assertIn('## similarity_label\n\n',result['caption'])
-        self.assertEqual(result['caption'].replace('## similarity_label\n\n',''),original)
+        self.assertEqual(result['status'],'converted');self.assertIn('## 参考关系标签\n\n',result['caption'])
+        self.assertEqual(result['caption'].replace('## 参考关系标签\n\n',''),original)
 
     async def test_standard_record_is_byte_identical_and_does_not_call_model(self):
         client=PlanClient();result=await normalize(STANDARD,client=client)
@@ -342,7 +342,7 @@ class JobTests(unittest.TestCase):
         self.assertEqual(self.client.calls,[])
 
     def test_missing_headers_keep_source_id_marker_after_successful_conversion(self):
-        incomplete=STANDARD.replace('## similarity_label\nYes\n\n','')
+        incomplete=STANDARD.replace('## 参考关系标签\n是\n\n','')
         job,_=self.create([{'id':'0001','caption':incomplete},{'id':'0002','caption':STANDARD}])
         self.assertEqual(job['missing_field_count'],1)
         self.assertEqual(Path(job['outputs']['missing_field_ids']).read_text(),'0001\n')
@@ -364,7 +364,7 @@ class JobTests(unittest.TestCase):
         self.assertNotIn('任务类型',detail[0]['原始缺少字段']);self.assertEqual(self.client.calls,[])
 
     def test_missing_header_detection_recognizes_aliases_and_ignores_empty_values_and_non_captions(self):
-        alias=STANDARD.replace('video_similarity_tag','similarity_tag').replace('## 主体','## subject')
+        alias=STANDARD.replace('视觉标签','similarity_tag').replace('## 主体','## subject')
         for text in [alias,STANDARD,'','Caption','普通文字','=1+2']:
             self.assertEqual(missing_fields(text),[])
         self.assertEqual(missing_fields(STANDARD.replace('## 主体\n<主体1>：青年。\n\n','')),['主体'])
@@ -382,7 +382,7 @@ class JobTests(unittest.TestCase):
         self.assertIn('场景',report[0]['原始缺少字段']);self.assertEqual(report[0]['原始缺少字段'],report[0]['整理后仍缺少字段'])
 
     def test_history_supplements_missing_reports_without_model_or_overwriting_data(self):
-        incomplete=STANDARD.replace('## similarity_label\nYes\n\n','')
+        incomplete=STANDARD.replace('## 参考关系标签\n是\n\n','')
         job,_=self.create([{'id':'0001','caption':incomplete}])
         checkpoint=self.manager.root/job['id']/'checkpoint.json'
         old_cache=checkpoint.read_bytes();corrected=Path(job['outputs']['corrected']).read_bytes()
@@ -399,7 +399,7 @@ class JobTests(unittest.TestCase):
         job,_=self.create([{'id':'correct','caption':STANDARD}])
         checkpoint=self.manager.root/job['id']/'checkpoint.json'
         saved=json.loads(checkpoint.read_text());saved['fingerprint']='old-rules'
-        saved['results']['1'].update(status='converted',caption=STANDARD.replace('video_similarity_tag','similarity_tag'))
+        saved['results']['1'].update(status='converted',caption=STANDARD.replace('视觉标签','similarity_tag'))
         checkpoint.write_text(json.dumps(saved));job.pop('schema_version',None)
         self.assertTrue(self.manager.snapshots()[0]['outdated_schema'])
         self.manager.retry(job['id']);self.manager.executor.submit(lambda:None).result(timeout=10)

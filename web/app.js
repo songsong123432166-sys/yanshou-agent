@@ -1,8 +1,9 @@
 'use strict';
 const $ = (selector) => document.querySelector(selector);
-const token = $('meta[name="app-token"]').content;
+let token = $('meta[name="app-token"]').content;
+let sessionRefresh = null;
 const allowed = new Set(['xlsx', 'csv', 'jsonl', 'json']);
-const state = { files: [], uploading: false, config: null, jobs: [], jobsSignature: '', online: true, reportExpanded: new Map(), peopleExpanded: new Map(), rechecking: new Set() };
+const state = { files: [], uploading: false, config: null, jobs: [], jobsSignature: '', online: true, reportExpanded: new Map(), peopleExpanded: new Map(), rechecking: new Set(), history: {seen: new Set(), current: new Set(), initialized: false} };
 const statusNames = { queued: '等待处理', preparing: '正在读取文件', running: '正在质检', done: '已完成', partial: '部分未完成', failed: '处理失败' };
 
 function element(tag, className, text) {
@@ -11,6 +12,30 @@ function element(tag, className, text) {
   if (text !== undefined) node.textContent = text;
   return node;
 }
+function setupHistoryDisclosure(id) {
+  const panel = document.getElementById(id);
+  const key = `captionqa.${id}-expanded`;
+  try { panel.open = localStorage.getItem(key) === 'true'; } catch {}
+  panel.addEventListener('toggle', () => {
+    try { localStorage.setItem(key, String(panel.open)); } catch {}
+  });
+}
+function partitionHistoryJobs(jobs, history) {
+  // Keep new and in-progress tasks visible for this visit, even after completion.
+  for (const job of jobs) {
+    if (['queued', 'preparing', 'running'].includes(job.status) || (history.initialized && !history.seen.has(job.id))) history.current.add(job.id);
+    history.seen.add(job.id);
+  }
+  history.initialized = true;
+  return jobs.map(job => history.current.has(job.id));
+}
+function updateHistoryDisclosure(id, count) {
+  const panel = document.getElementById(id);
+  panel.hidden = count === 0;
+  panel.querySelector('.history-record-count').textContent = `${count} 条`;
+}
+setupHistoryDisclosure('job-history');
+setupHistoryDisclosure('field-history');
 function message(text) { $('#message').textContent = text || ''; $('#message').hidden = !text; }
 function formatSize(size) { return size < 1024 * 1024 ? `${Math.max(1, Math.round(size / 1024))} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`; }
 function updateButton() {
@@ -48,9 +73,33 @@ function addFiles(files) {
   message(errors.join('\n'));
   renderSelection();
 }
+async function refreshSession() {
+  if (!sessionRefresh) {
+    sessionRefresh = (async () => {
+      const response = await fetch('/', {cache:'no-store'});
+      if (!response.ok) throw new Error('工作台尚未就绪，稍后将自动重连。');
+      const html = await response.text();
+      const match = html.match(/<meta\s+name="app-token"\s+content="([A-Za-z0-9_-]+)"/);
+      if (!match || match[1] === '__APP_TOKEN__') throw new Error('未能恢复工作台连接，请刷新页面。');
+      token = match[1];
+      $('meta[name="app-token"]').content = token;
+    })().finally(() => {sessionRefresh = null;});
+  }
+  return sessionRefresh;
+}
 async function api(path, options = {}) {
-  const response = await fetch(path, { ...options, headers: { 'X-App-Token': token, ...(options.headers || {}) } });
-  const result = await response.json();
+  const request = () => fetch(path, { ...options, headers: { ...(options.headers || {}), 'X-App-Token': token } });
+  const sentToken = token;
+  let response = await request();
+  let result = await response.json();
+  // A rejected session has not reached a handler or changed any records.
+  // Refresh that session once and replay without reloading or losing drafts.
+  if (response.status === 403 && result.error === '页面已失效，请刷新后重试。') {
+    if (typeof ReadableStream !== 'undefined' && options.body instanceof ReadableStream) throw new Error(result.error);
+    if (token === sentToken) await refreshSession();
+    response = await request();
+    result = await response.json();
+  }
   if (!response.ok) throw new Error(result.error || '操作失败，请重试');
   return result;
 }
@@ -154,7 +203,8 @@ function renderPeopleReport(job) {
 function renderJobs() {
   $('#job-count').textContent = state.jobs.length;
   $('#empty-state').hidden = !!state.jobs.length;
-  $('#jobs').replaceChildren(...state.jobs.map(job => {
+  const current = partitionHistoryJobs(state.jobs, state.history);
+  const cards = state.jobs.map(job => {
     const card = element('article', 'job-card');
     const top = element('div', 'job-top');
     const title = element('div', 'job-title');
@@ -175,19 +225,19 @@ function renderJobs() {
     if(job.status==='running'&&!job.dry_run){
       const waiting=element('div','scope-note');
       waiting.setAttribute('aria-label','AI 请求进度');
-      waiting.append(element('p','',`单次请求最多 ${job.request_timeout_seconds || 60} 秒；每条 AI 检查含重试最多 ${job.caption_timeout_seconds || 180} 秒。超时项保留本地结果，可单独重试。`));
+      waiting.append(element('p','',`单次请求最多 ${job.request_timeout_seconds || 60} 秒，最多尝试 ${job.max_request_attempts || 3} 次，不设额外总时限。未完成项保留本地结果，可单独重试。`));
       for(const item of job.active_requests || []){
         const name=item.sample_id ? `ID ${item.sample_id}` : `数据第 ${item.row_index} 条`;
         const attempt=item.attempt ? ` · 第 ${item.attempt}/${item.max_attempts} 次请求` : '';
-        const stage=item.state==='retry_wait' ? `请求失败（${item.error_type}），等待重试` : item.state==='timed_out' ? '已达总时限，正在保存' : '等待 AI 返回';
+        const stage=item.state==='retry_wait' ? `请求失败（${item.error_type}），等待重试` : item.state==='timed_out' ? '本次检查未完成，正在保存' : '等待 AI 返回';
         waiting.append(element('div','',`${name} · 已用 ${item.elapsed_seconds} 秒${attempt} · ${stage}`));
       }
       card.append(waiting);
     }
-    if(job.timed_out_count)card.append(element('div','partial-note',`${job.timed_out_count} 条 AI 检查达到总时限；已保存本地结果，不代表通过，可点击“重试未完成项”。`));
+    if(job.timed_out_count)card.append(element('div','partial-note',`${job.timed_out_count} 条先前因旧总时限中断；本地结果已保留，可点击“重试未完成项”继续。`));
     if(job.workflow_version==='review-first-v1')card.append(element('p','partial-note','识别阶段保留原文，仅生成疑点与建议；人工审核后才回填。'));
     if(job.workflow_version?.startsWith('safe-auto-review-'))card.append(element('p','partial-note','白名单格式、符号宽度和词表错字默认自动修正；病句、主体和事实问题仍需人工。修正副本另存，原文件保留。'));
-    if (job.caption_location) card.append(element('div', 'partial-note', `仅检查 ${job.caption_location} 的内容；不检查其他列。`));
+    if (job.caption_location) card.append(element('div', 'partial-note', `仅修正 ${job.caption_location}；参考素材列只读，用于校验 ref 引用数量。`));
     if (job.counts.SKIPPED_NOT_HUMAN_CAPTION) {
       const skip = element('details', 'partial-note');
       skip.append(element('summary', '', '跳过是什么意思？'));
@@ -302,7 +352,10 @@ function renderJobs() {
     if (output.childNodes.length) card.append(output);
     if(['done','partial'].includes(job.status)&&!job.stale_results&&!job.outdated_instruction_parser)card.append(renderReviewPanel(job));
     return card;
-  }));
+  });
+  $('#active-jobs').replaceChildren(...cards.filter((card, index) => current[index]));
+  $('#jobs').replaceChildren(...cards.filter((card, index) => !current[index]));
+  updateHistoryDisclosure('job-history', current.filter(value => !value).length);
 }
 async function refreshJobs() {
   try {
