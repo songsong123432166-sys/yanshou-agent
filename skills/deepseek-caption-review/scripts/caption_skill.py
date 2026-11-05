@@ -20,9 +20,9 @@ from _labels import normalize_separators
 from _audio import audio_spans
 import caption_qa_width as width
 
-VERSION='1.7.0'
+VERSION='1.8.0'
 SEMANTIC_LABELS={'疑似病句','疑似错别字','标点问题','主体引用','内容符号'}
-LABELS={'pipe_width':'标签分隔符格式','duplicate_defined_subjects':'主体重复定义','missing_subjects':'自然指令漏写已定义主体',
+LABELS={'tag_language':'标签中文化','unknown_tag_language':'标签值待确认','pipe_width':'标签分隔符格式','duplicate_defined_subjects':'主体重复定义','missing_subjects':'自然指令漏写已定义主体',
         'ghost_subjects':'引用未定义主体','skipped_numbering':'主体编号不连续',
         'symbol_format':'内容符号不成对','label_separator':'多标签拼接符不规范',
         'time_range_break':'时间段分段','bare_tags':'编号标签待核对','missing_punctuation':'段尾标点待核对'}
@@ -63,6 +63,24 @@ def sections(text):
 
 protected=width.protected_spans
 outside_transform=width.outside_literals
+
+
+def known_legacy_titles(text):
+    """Move only unambiguous known task labels/prompts; never infer task meaning."""
+    headers=schema.parse(text)['headers'];edits=[]
+    for n,h in enumerate(headers):
+        if h['field'] not in {'_task','_subtask'}:continue
+        end=headers[n+1]['start'] if n+1<len(headers) else len(text)
+        body=((h['inline']+'\n' if h['inline'] is not None else '')+text[h['end']:end]).strip()
+        labels=re.split('[|｜]',normalize_separators('任务类型',body))
+        known=bool(labels) and all(re.sub(r'\s*-\s*','-',value.strip()) in schema.TASK_LABELS for value in labels)
+        target='提示' if h['field']=='_subtask' and schema.is_generation_request(body) else '任务类型' if known else None
+        if target is None:continue
+        newline='\r\n' if h['line'].endswith('\r\n') else '\n' if h['line'].endswith('\n') else ''
+        title=schema.HEADER_PREFIX+target+('：'+h['inline'] if h['inline'] is not None else '')+newline
+        edits.append((h['start'],h['end'],title))
+    for a,b,value in reversed(edits):text=text[:a]+value+text[b:]
+    return text
 
 
 def safe_body(name,text):
@@ -122,17 +140,18 @@ def check(caption,sample_id=None,check_only=False):
         'base_sha256':digest(caption),'mode':'check_only' if check_only else 'safe_fix',
         'semantic_status':'not_run','findings':[],'automatic_changes':[],'approved_history':[],
         'missing_fields':[],'status':'LOCAL_CHECK_COMPLETE'}
-    parsed=schema.parse(caption);hs=parsed['headers'];present={h['field'] for h in hs}
+    working=known_legacy_titles(caption)
+    parsed=schema.parse(working);hs=parsed['headers'];present={h['field'] for h in hs}
     if '_task' in present:present.add('任务类型')
     report['missing_fields']=[f for f in schema.FIELDS if f not in present] if hs else []
     for name in report['missing_fields']:
         report['findings'].append(finding(name,'缺少字段','原始数据缺少字段标题；没有原文依据时仅补空标题，内容须人工核对。'))
-    legacy=any(h['alias'] in {'task_type','subtask_type','natural_instruction'} for h in hs)
+    legacy=any(h['field'] in {'_task','_subtask'} for h in hs)
     if legacy or not hs or parsed['unknown'] or any(b['field'] is None for b in parsed['blocks']) or len(present)!=len(hs):
         report['status']='STRUCTURE_NEEDS_CONFIRMATION'
-        report['findings'].append(finding('字段结构','结构待确认','旧英文整套结构、重复字段或未知边界需先确认，原文保留；旧task_type为参考时不要猜新版标签。'))
+        report['findings'].append(finding('字段结构','结构待确认','任务类型无法明确映射、重复字段或未知边界需先确认，原文保留；旧task_type为参考时不要猜新版标签。'))
         bind_findings(report);return report
-    prepared,_=schema.local_caption(caption,parsed,schema.task_value(parsed))
+    prepared,_=schema.local_caption(working,parsed,schema.task_value(parsed))
     raw_sections=sections(prepared)
     edits=[]
     for name,item in raw_sections.items():
@@ -298,7 +317,7 @@ def markdown(report):
            '状态：'+report['status'],'语义检查：'+report['semantic_status'],'']
     if not report['findings']:lines+=['本轮未发现需要人工确认的问题。' if report['semantic_status']=='completed' else '本地规则没有待确认问题；语义检查尚未完成。','']
     for item in report['findings']:
-        lines += ['## '+item['issue_id']+'｜'+item['label'],'字段：'+item['field'],'理由：'+item['reason'],'']
+        lines += ['## '+item['issue_id']+'｜'+item['label'],'字段：'+schema.TITLES.get(item['field'],item['field']),'理由：'+item['reason'],'']
         if item.get('excerpt'):lines+=['原句：','```text',item['excerpt'],'```']
         if item.get('replacement') is not None:lines+=['建议替换为：','```text',item['replacement'],'```']
         if item.get('subject'):lines+=['主体字段：','```text',item['subject'].strip(),'```']

@@ -5,7 +5,7 @@ display_name_en: Single Caption Review and Repair
 description: 检查用户粘贴的一段结构化视频 Caption，按固定规则安全修正格式，给出待确认的语义建议，并仅应用用户明确批准的改稿。
 description_zh: 一次检查一段 Caption；安全格式直接修正，病句和主体引用等建议确认后应用，保留原文与修订记录。
 description_en: Review one structured video Caption, apply deterministic safe fixes, and apply semantic suggestions only after explicit human confirmation.
-version: 1.7.0
+version: 1.8.0
 author: Caption QA 项目
 examples_zh:
   - 检查并安全修正下面这一段 Caption。
@@ -41,7 +41,7 @@ python3 "<技能目录>/scripts/caption_skill.py" check --input "<任务目录>/
 若用户说“只检查”，加 `--check-only`；有真实题目ID才加 `--id "真实ID"`。Windows可使用可用的 `python` 或 `py -3`。不要自动安装Python、换模型或添加额外API；解释器不可用时说明脚本步骤未完成，保留原文，不能声称已安全修正。
 
 3. 读取命令返回的 `caption`、`report` 路径。脚本输出新目录下的 `caption.txt`、`report.json`、`待确认报告.md`，不覆盖输入。原文、当前稿的SHA256和自动差异仅用于定位与留痕，不证明语义无错。
-4. 若状态为 `STRUCTURE_NEEDS_CONFIRMATION`，先说明旧版结构、重复字段或未知边界，保留原文，暂停自动改写；不猜旧“参考”的新版标签，不用模型整段重写绕过脚本。请用户明确字段归属或提供规范分段后重检。
+4. 已知英文标题按规则中的对照表转成中文。`subtask_type` 为明确生成提示语时归“提示”，为已知子任务标签时归“任务类型”；`task_type` 已写明已知子任务标签时只改标题。若状态为 `STRUCTURE_NEEDS_CONFIRMATION`，说明无法确定的任务类型、重复字段或未知边界，保留原文，暂停自动改写；旧“参考”不得猜新版标签，报告保留用户提供的题目ID。请用户明确归属后重检，不用模型整段重写绕过脚本。
 5. 其余情况，在安全稿上执行下方语义检查。脚本本身不做语义判断，`semantic_status=not_run` 时不能称已完成语义检查。只检查模式不生成改稿，按报告列明建议，等用户要求安全修正后再进入应用流程。
 
 ## 语义检查与候选

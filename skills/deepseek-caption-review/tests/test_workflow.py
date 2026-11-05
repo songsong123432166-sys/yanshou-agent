@@ -30,6 +30,36 @@ def suggestion(report,original,replacement,label='疑似病句',field='自然指
 
 
 class LocalTests(unittest.TestCase):
+    def test_complete_english_fields_follow_the_latest_chinese_table(self):
+        expected=caption()
+        aliases={'任务类型':'task_type','提示':'subtask_type','参考关系标签':'similarity_label',
+            '视觉标签':'video_similarity_tag','听觉标签':'audio_similarity_tag','输入描述':'brief_captions',
+            '基调':'tone','场景':'scene','主体':'subject','画面元素':'visual_element','总结':'summary','自然指令':'natural_instruction'}
+        raw=expected
+        for title,alias in aliases.items():raw=raw.replace('## '+title+'\n','## '+alias+'\n')
+        report=app.check(raw,sample_id='demo-007')
+        self.assertEqual(report['caption'],expected)
+        self.assertEqual(report['source_caption'],raw)
+        self.assertEqual(report['sample_id'],'demo-007')
+        self.assertFalse(report['findings'])
+        self.assertEqual(app.check(raw,check_only=True)['caption'],raw)
+
+    def test_subtask_labels_become_task_type_and_root_reference_is_not_guessed(self):
+        expected=caption()
+        raw=expected.replace('## 任务类型','## subtask_type')
+        self.assertEqual(app.check(raw)['caption'],expected)
+        unresolved=expected.replace('## 任务类型\n人物参考｜场景参考','## task_type\n参考')
+        report=app.check(unresolved,sample_id='needs-task-001')
+        self.assertEqual(report['caption'],unresolved)
+        self.assertEqual(report['sample_id'],'needs-task-001')
+        self.assertEqual(report['status'],'STRUCTURE_NEEDS_CONFIRMATION')
+
+    def test_mixed_current_and_old_task_fields_do_not_overwrite_each_other(self):
+        raw=caption()+'## task_type\n多帧控制\n'
+        report=app.check(raw)
+        self.assertEqual(report['caption'],raw)
+        self.assertEqual(report['status'],'STRUCTURE_NEEDS_CONFIRMATION')
+
     def test_three_chinese_titles_replace_english_titles_and_keep_literal_body(self):
         expected=caption('<主体1>展示【similarity_label / video_similarity_tag / audio_similarity_tag】。')
         raw=expected.replace('## 参考关系标签','## similarity_label').replace('## 视觉标签','## video_similarity_tag').replace('## 听觉标签','## audio_similarity_tag')

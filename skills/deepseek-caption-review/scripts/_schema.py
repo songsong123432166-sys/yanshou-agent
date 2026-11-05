@@ -12,6 +12,7 @@ FIELDS=('任务类型','提示','similarity_label','video_similarity_tag','audio
 ALIASES={name:name for name in FIELDS}
 
 ALIASES.update(TAG_ALIASES)
+ALIASES.update(tone='基调',scene='场景',visual_element='画面元素',summary='总结')
 
 ALIASES.update(task_type='_task',subtask_type='_subtask',brief_captions='输入描述',subject='主体',
                natural_instruction='自然指令',similarity_tag='video_similarity_tag',
@@ -149,3 +150,11 @@ def task_value(parsed,mapping=None):
     labels=target if isinstance(target,list) else re.split('[|｜]',target)
     if not labels or any(not isinstance(s,str) or not s.strip() for s in labels):raise ValueError('任务标签映射须为非空标签或标签列表。')
     return '｜'.join(s.strip() for s in labels)
+
+def is_generation_request(text):
+    """Recognize explicit prompt prose, without treating old subtype tags as prose."""
+    value=text.strip()
+    return (bool(value) and value not in TASK_LABELS and
+            not re.match(r'^(?:参考|编辑|延长|续写)[ \t]*[-/]',value) and
+            bool(re.match(r'^(?:以|基于|根据|参考|将|把|请|补全|续写|向前续写|向前延长|延长|编辑|严格编辑|生成|制作)',value)) and
+            bool(re.search(r'生成|制作|补全|续写|延长|编辑',value)))

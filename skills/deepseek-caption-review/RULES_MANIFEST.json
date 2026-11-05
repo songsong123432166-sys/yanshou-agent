@@ -1,5 +1,5 @@
 {
-  "skill_version": "1.7.0",
+  "skill_version": "1.8.0",
   "pipe_policy": "label-delimiter-format-v2",
   "punctuation_policy": "basic-punctuation-v1",
   "spacing_policy": "metadata-hyphen-spacing-v2",
@@ -7,6 +7,7 @@
   "field_schema_version": 9,
   "auto_fix_policy_version": 9,
   "scope": "One structured Caption; no network calls, tables, keys or source overwrite.",
+  "schema_adapter": "latest-field-aliases-v1: tone, scene, visual_element, summary; known task/prompt ownership only",
   "shared_sources": [
     {
       "source": "captionqa/caption_qa_metadata.py",
@@ -18,7 +19,7 @@
       "source": "captionqa/caption_field_schema.py",
       "source_sha256": "b7aee812bc9778261dc62265a232dfebabccfaaa4b75ce7301215dc96385fcc6",
       "bundled": "scripts/_schema.py",
-      "bundled_sha256": "24e9f2ac72f3755df4ab1dc5b8ad27b204fd50f2f22c4717e594fa864c614b26"
+      "bundled_sha256": "344a81464176ab64d7fb8b3fb72bc941ecbce38bad0e142600df4cf95239e182"
     },
     {
       "source": "captionqa/caption_qa_agent.py",
